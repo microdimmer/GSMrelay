@@ -1,5 +1,5 @@
 const char PROG_VERSION[] = "0.1";
-//  #define DEBUG
+ #define DEBUG
 #include <SoftwareSerial.h>    //modem A6
 #include <DallasTemperature.h> //DS18B20
 #include <DFMiniMp3.h>         //DF MP3 Player mini
@@ -17,28 +17,6 @@ SimpleTimer timer;
 #include <LiquidCrystal_I2C.h>
 #include <LCD_1602_RUS.h> //1602 display rus
 LCD_1602_RUS lcd(0x3F, 16, 2);
-
-LiquidLine main_line1(1, 0, "Power");
-LiquidLine main_line2(1, 1, "Shedule");
-LiquidLine main_line3(1, 0, "Info");
-LiquidLine main_line4(1, 1, "Time");
-LiquidLine main_line5(1, 0, "Exit");
-LiquidScreen main_screen1(main_line1, main_line2);
-LiquidScreen main_screen2(main_line3, main_line4);
-LiquidScreen main_screen3(main_line5);
-
-LiquidLine info_line1(1, 0, "Home temp");
-LiquidLine info_line2(1, 0, "Heater temp ");
-LiquidLine info_line3(1, 0, "GSM signal");
-LiquidLine info_line4(1, 0, "Exit");
-LiquidScreen info_screen1(info_line1, info_line2);
-LiquidScreen info_screen2(info_line3, info_line4);
-
-LiquidMenu main_menu(lcd, main_screen1, main_screen2, main_screen3, 1);
-LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
-
-LiquidSystem menu_system(main_menu, info_menu);
-// bool first_line_focus = true;
 
 #ifdef DEBUG
 #define PRINTLNF(s)       \
@@ -72,6 +50,27 @@ int8_t t_home_set = 0;
 bool heating = false;
 bool updateFlag = true;
 
+LiquidLine main_line1(1, 0, "Power");
+LiquidLine main_line2(1, 1, "Shedule");
+LiquidLine main_line3(1, 0, "Info");
+LiquidLine main_line4(1, 1, "Time");
+LiquidLine main_line5(1, 0, "Exit");
+LiquidScreen main_screen1(main_line1, main_line2);
+LiquidScreen main_screen2(main_line3, main_line4);
+LiquidScreen main_screen3(main_line5);
+
+LiquidLine info_line1(1, 0, "Home temp ", t_home);
+LiquidLine info_line2(1, 1, "Heater temp ", t_heater);
+LiquidLine info_line3(1, 0, "GSM signal");
+LiquidLine info_line4(1, 1, "Exit");
+LiquidScreen info_screen1(info_line1, info_line2);
+LiquidScreen info_screen2(info_line3, info_line4);
+
+LiquidMenu main_menu(lcd, main_screen1, main_screen2, main_screen3, 1);
+LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
+
+LiquidSystem menu_system(main_menu, info_menu, 1);
+
 void timerIsr()
 {
   encoder.service();
@@ -84,7 +83,15 @@ void func() { // Blank function, it is attached to the lines so that they become
 void go_info_menu() {
   PRINTLNF("changing to info menu!");
   menu_system.change_menu(info_menu);
-  // menu_system.update();
+  menu_system.change_screen(1);
+  menu_system.switch_focus();
+}
+
+void go_main_menu() {
+  PRINTLNF("changing to main menu!");
+  menu_system.switch_focus();
+  menu_system.change_menu(main_menu);
+  
 }
 
 void readMeasurements()
@@ -92,22 +99,22 @@ void readMeasurements()
   enc_val += encoder.getValue(); //read encoder
   if (enc_val != last_val) {
     if (last_val > enc_val){ 
-      if (!main_menu.switch_focus()) { // end of menu lines
-         main_menu++; 
-         main_menu.switch_focus();
+      if (!menu_system.switch_focus()) { // end of menu lines
+         menu_system++; 
+         menu_system.switch_focus();
       } 
     }
     else 
-      if (!main_menu.switch_focus(false)) { // end of menu lines
-        main_menu--; 
-        main_menu.switch_focus(false);
+      if (!menu_system.switch_focus(false)) { // end of menu lines
+        menu_system--; 
+        menu_system.switch_focus(false);
       } 
     last_val = enc_val;
   }
   ClickEncoder::Button b = encoder.getButton();
   if (b != ClickEncoder::Open)
   {
-    main_menu.call_function(1);
+    menu_system.call_function(1);
   }
 }
 
@@ -153,17 +160,22 @@ void setup()
   lcd.setCursor(3, 1);
   lcd.print("загрузка...");
   delay(150);
-  // main_menu.set_focusPosition(Position::LEFT);
+  main_menu.set_focusPosition(Position::LEFT);
+  info_menu.set_focusPosition(Position::LEFT);
   // main_menu.init();
   // info_menu.init();
   
   menu_system.set_focusPosition(Position::LEFT);
 
-  main_line1.attach_function(1, func);
+  main_line1.attach_function(1, go_info_menu);
   main_line2.attach_function(1, func);
   main_line3.attach_function(1, go_info_menu);
   main_line4.attach_function(1, func);
   main_line5.attach_function(1, func);
+  info_line1.attach_function(1, func);
+  info_line2.attach_function(1, func);
+  info_line3.attach_function(1, func);
+  info_line4.attach_function(1, go_main_menu);
   menu_system.switch_focus();
   menu_system.update();
   // delay(2500);
