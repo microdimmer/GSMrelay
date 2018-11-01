@@ -4,6 +4,9 @@ const char PROG_VERSION[] = "0.1";
 #include <DallasTemperature.h> //DS18B20
 #include <DFMiniMp3.h>         //DF MP3 Player mini
 #include <ClickEncoder.h>      //encoder with button https://github.com/0xPIT/encoder
+#include <iarduino_GSM.h>  
+#include <SoftwareSerial.h>
+
 // #define ENCODER_OPTIMIZE_INTERRUPTS
 // #include <Encoder.h>
 // Encoder myEnc(2, 3);
@@ -48,8 +51,8 @@ int8_t t_heater_set = 0;
 int8_t t_home = -23;
 int8_t t_home_set = 0;
 int8_t gsm_signal = 55;
-
 bool heating = false;
+
 bool showMainScreen = true;
 bool updateFlag = true;
 
@@ -130,15 +133,14 @@ void readButton() {
   button = encoder.getButton();
   if (button != ClickEncoder::Open)  {
     PRINTLNF("button clicked");
-    if (showMainScreen) {
+    if (showMainScreen) { //go to main menu
       menu_system.change_menu(main_menu);
       menu_system.change_screen(1);
       menu_system.switch_focus();
       showMainScreen = false;
       PRINTLNF("show menu");
     }
-    else {  
-      // drawMainSreen();  
+    else {  // go to attached to menu function
       menu_system.call_function(1);
     }
   }
@@ -199,7 +201,7 @@ void setup() {
   drawMainSreen();
 
   // timer.setInterval(100L, readMeasurements);
-  timer.setInterval(5000L, drawMainSreen);
+  // timer.setInterval(5000L, updateMainScreen);
   timer.setInterval(1L, timerIsr);
 }
 void loop() {
@@ -211,7 +213,4 @@ void loop() {
   else {
     readEncoder();
   }  
-  // else {
-  //   readEncoder();
-  // }  
 }
