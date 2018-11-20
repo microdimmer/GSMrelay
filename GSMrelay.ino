@@ -1,15 +1,15 @@
 const char PROG_VERSION[] = "0.1";
 #define DEBUG
-#include <SoftwareSerial.h>    //modem A6
-#include <DallasTemperature.h> //DS18B20
-#include <DFMiniMp3.h>         //DF MP3 Player mini
-#include <ClickEncoder.h>      //encoder with button https://github.com/0xPIT/encoder
-#include <iarduino_GSM.h>  
+#include <SoftwareSerial.h> //for GSM modem A6
+#include <OneWire.h>        //for DS18B20
+#include <DFMiniMp3.h>      //DF MP3 Player mini
+#include <ClickEncoder.h>   //encoder with button https://github.com/0xPIT/encoder
+#include <iarduino_GSM.h>
 #include <SoftwareSerial.h>
 
-// #define ENCODER_OPTIMIZE_INTERRUPTS
-// #include <Encoder.h>
-// Encoder myEnc(2, 3);
+OneWire ds(12);
+byte DSaddr1[8] = {0x28, 0xFF, 0xE4, 0x47, 0x50, 0x17, 0x04, 0x73}; // first DS18B20 adress
+byte DSdata1[9];                                                    //first and last temp bytes and CRC
 
 ClickEncoder encoder(A1, A0, A2, 2); //changed to 2 at one turn
 ClickEncoder::Button button;
@@ -17,8 +17,6 @@ int16_t last_val, enc_val;
 
 #include <SimpleTimer.h> // Handy timers
 SimpleTimer timer;
-// #include <LiquidCrystal_I2C.h>
-// #include <LCD_1602_RUS.h> //1602 display rus
 #include <LiquidMenu.h> //The menu wrapper library
 LCD_1602_RUS lcd(0x3F, 16, 2);
 
@@ -48,14 +46,16 @@ uint8_t home[8] = {0xE4, 0xEE, 0xFF, 0xFF, 0xF1, 0xF5, 0xF1, 0xFF};
 
 int8_t t_heater = 73;
 int8_t t_heater_set = 0;
-int8_t t_home = -23;
+float t_home = -99;
+// int8_t t_home = -23;
 int8_t t_home_set = 0;
 int8_t gsm_signal = 55;
 bool heating = false;
 
-bool showMainScreen = true;
+bool updateMainScreen = true;
 bool updateFlag = true;
 
+uint8_t current_menu = 0; //0 - homepage, 1 - main menu, 2 - info menu
 LiquidLine main_line1(1, 0, "Power");
 LiquidLine main_line2(1, 1, "Shedule");
 LiquidLine main_line3(1, 0, "Info");
@@ -77,105 +77,160 @@ LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
 
 LiquidSystem menu_system(main_menu, info_menu, 1);
 
-
-
-void timerIsr() {
+void timerIsr()
+{
   encoder.service();
 }
 
-void func() { // Blank function, it is attached to the lines so that they become focusable.
+void func()
+{ // Blank function, it is attached to the lines so that they become focusable.
   PRINTLNF("hello!");
 }
 
-void go_info_menu() {
+void go_info_menu()
+{
   PRINTLNF("changing to info menu!");
   menu_system.change_menu(info_menu);
   menu_system.change_screen(1);
   menu_system.switch_focus();
 }
 
-void go_main_menu() {
+void go_main_menu()
+{
   PRINTLNF("changing to main menu!");
   menu_system.switch_focus();
   menu_system.change_menu(main_menu);
 }
 
-void go_main_screen() {
+void go_main_screen()
+{
   PRINTLNF("changing to main screen!");
   menu_system.switch_focus();
-  showMainScreen = true;
-  updateMainScreen();
+  updateMainScreen = true;
+  current_menu == 0;
+  // drawMainSreen();
 }
 
-void readEncoder() {
+void readEncoder()
+{
+  if (updateMainScreen)
+    return;
+  encoder.service();
   enc_val += encoder.getValue(); //read encoder
-  if ((max(enc_val,last_val) - min(enc_val,last_val)) >=2 ) {  //if changed to 2 -> one turn 
-    if (last_val > enc_val){ 
+  if (enc_val == last_val)
+    return;
+  if ((max(enc_val, last_val) - min(enc_val, last_val)) >= 2)
+  { //if changed to 2 -> one turn
+    if (last_val > enc_val)
+    {
       PRINTLNF("enc ++");
-      if (!menu_system.switch_focus()) { // end of menu lines
-         menu_system++; 
-         menu_system.switch_focus();
-      } 
+      if (!menu_system.switch_focus())
+      { // end of menu lines
+        menu_system++;
+        menu_system.switch_focus();
+      }
     }
-    else { 
+    else
+    {
       PRINTLNF("enc --");
-      if (!menu_system.switch_focus(false)) { // end of menu lines
-        menu_system--; 
+      if (!menu_system.switch_focus(false))
+      { // end of menu lines
+        menu_system--;
         menu_system.switch_focus(false);
-      } 
+      }
     }
     last_val = enc_val;
     PRINTLNF("___");
   }
 }
 
-void readButton() {
+void readButton()
+{
+  encoder.service();
   button = encoder.getButton();
-  if (button != ClickEncoder::Open)  {
+  if (button != ClickEncoder::Open)
+  {
     PRINTLNF("button clicked");
-    if (showMainScreen) { //go to main menu
+    if (current_menu == 0) //homepage
+    { //go to main menu
       menu_system.change_menu(main_menu);
       menu_system.change_screen(1);
       menu_system.switch_focus();
-      showMainScreen = false;
+      updateMainScreen = false;
+      current_menu = 1;
       PRINTLNF("show menu");
     }
-    else {  // go to attached to menu function
+    else
+    { // go to attached to menu function
       menu_system.call_function(1);
     }
   }
 }
 
-void updateMainScreen() {
-  updateFlag = true;
-}
+// void updateMainScreen()
+// {
+//   updateFlag = true;
+// }
 
-void drawMainSreen() {
-  if (!updateFlag) 
+void drawMainSreen()
+{
+  // if (!updateFlag)
+  // return;
+  if (!updateMainScreen)
     return;
   lcd.clear();
   lcd.createChar(6, heater);
   lcd.createChar(7, home);
   lcd.setCursor(0, 0);
-  heating?lcd.print("ВКЛ"):lcd.print("ВЫКЛ");
+  heating ? lcd.print("ВКЛ") : lcd.print("ВЫКЛ");
   lcd.setCursor(11, 0);
   lcd.print("12:59");
   lcd.setCursor(0, 1);
   lcd.write(6);
-  if (t_heater>0) lcd.print("+");
+  if (t_heater > 0)
+    lcd.print("+");
   lcd.print(t_heater);
   lcd.print("°C");
   lcd.setCursor(8, 1);
   lcd.write(7);
-  if (t_home>0) lcd.print("+");
-  lcd.print(t_home);
+  if (t_home > 0)
+    lcd.print("+");
+  lcd.print(t_home,1);
   lcd.print("°C");
   PRINTLNF("show main screen");
-  updateFlag = false;
+  current_menu = 0;
+  updateMainScreen = false;
+  // updateFlag = false;
 }
 
-void setup() {
+void readMeasurements()
+{
+  DSdata1[0] = ds.read();
+  DSdata1[1] = ds.read();
+  t_home = (float)((int)DSdata1[0] | (((int)DSdata1[1]) << 8)) * 0.0625 + 0.03125;
+  sendDScommand(DSaddr1);
+
+  if (current_menu == 0)
+    updateMainScreen = true;
+}
+
+void sendDScommand(byte adr[8])
+{
+  ds.reset();
+  ds.select(adr);
+  ds.write(0x44, 0); // start conversion
+
+  ds.reset();
+  ds.select(adr);
+  ds.write(0xBE, 0); // read Scratchpad
+}
+
+void setup()
+{
   Serial.begin(9600);
+
+  sendDScommand(DSaddr1);
+
   lcd.init();
   lcd.backlight();
   lcd.setCursor(1, 0);
@@ -200,17 +255,21 @@ void setup() {
 
   drawMainSreen();
 
-  // timer.setInterval(100L, readMeasurements);
+  timer.setInterval(1000L, readMeasurements);
   // timer.setInterval(5000L, updateMainScreen);
-  timer.setInterval(1L, timerIsr);
+  // timer.setInterval(1L, timerIsr);
 }
-void loop() {
+void loop()
+{
   timer.run();
   readButton();
-  if (showMainScreen) {
+  readEncoder();
+  // if (updateMainScreen)
+  // {
     drawMainSreen();
-  }  
-  else {
-    readEncoder();
-  }  
+  // }
+  // else
+  // {
+  //   readEncoder();
+  // }
 }
