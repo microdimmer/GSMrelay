@@ -1,5 +1,6 @@
-//TODO remove all strings objects, use DFPlayerMini_Fast, add shedule and temp automation, add voice temp information,add PROGMEM to all const
-#define DEBUGGING
+//TODO remove all strings objects, use DFPlayerMini_Fast, add shedule and temp automation, add preferences menu section, add voice temp information,add PROGMEM to all const strings
+#include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
+// #define DEBUGGING
 #ifdef DEBUGGING
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 #define PRINTLNF(s)       \
@@ -11,6 +12,11 @@
     Serial.print(F(s)); \
     Serial.println(v);  \
   }
+#define PRINTLNHEX(s, v)    \
+  {                         \
+    Serial.print(F(s));     \
+    Serial.println(v, HEX); \
+  }
 #define PRINT(s, v)     \
   {                     \
     Serial.print(F(s)); \
@@ -19,6 +25,7 @@
 #else
 #define PRINTLNF(s)
 #define PRINTLN(s, v)
+#define PRINTLNHEX(s, v)
 #define PRINT(s, v)
 #endif
 
@@ -49,9 +56,7 @@ const char *const phone_table[] PROGMEM = {PHOME_NUMBER1, PHOME_NUMBER2, PHOME_N
 #include <LiquidMenu.h>     //The menu wrapper library
 
 OneWire ds(TEMP_SENSOR_PIN);
-const byte DSaddr1[] = {0x28, 0xFF, 0xE4, 0x47, 0x50, 0x17, 0x04, 0x73}; // first DS18B20 address  //TODO add PROGMEM
-const byte DSaddr2[] = {0x28, 0xFF, 0x2F, 0xDA, 0xC1, 0x17, 0x04, 0xDE}; // second DS18B20 address
-// const byte *const DSaddr_table[] PROGMEM = {DSaddr1, DSaddr2};
+byte DSaddr[2][8]; // first and second DS18B20 addresses, home 28FFE44750170473 heater 28FF2FDAC11704DE
 
 ClickEncoder encoder(ENCODER_PIN1, ENCODER_PIN2, ENCODER_PIN3, 2); //changed to 2 at one turn
 ClickEncoder::Button button;
@@ -62,8 +67,6 @@ SoftwareSerial mp3Serial(MP3_SERIAL_RX, MP3_SERIAL_TX);
 // DFPlayerMini_Fast mp3Player;
 DFRobotDFPlayerMini mp3Player;
 
-String timeString = ""; //TODO
-
 SimpleTimer timer;
 
 LCD_1602_RUS lcd(0x3F, 16, 2);
@@ -71,27 +74,32 @@ LCD_1602_RUS lcd(0x3F, 16, 2);
 const char heater[] PROGMEM = {0xF2, 0xE9, 0xF2, 0xE9, 0xE0, 0xF5, 0xFF, 0xFF};
 const char home[] PROGMEM = {0xE4, 0xEE, 0xFF, 0xFF, 0xF1, 0xF5, 0xF1, 0xFF};
 const char celsius[] PROGMEM = {0x18, 0x18, 0x00, 0x07, 0x05, 0x04, 0x05, 0x07};
+const char gsm[] PROGMEM = {0x01, 0x03, 0x1F, 0x11, 0x1F, 0x15, 0x1B, 0x1F};
+const char memory[] PROGMEM = {0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00};
 
-int8_t t_heater = -99;
+char string_buff[8];
+char two_digits_buff[4];
+int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_heater_set = 0;
-int8_t t_home = -99;
-// float t_home = -99;
 // int8_t t_home_set = 0;
 int8_t gsm_signal = 0;
+uint16_t memory_free = 0;
 bool relayFlag = false;
 bool backlightFlag = true;
-
 bool updateMainScreen = true;
+bool clearMainSreen = false;
 
 const char MENU_ON_OFF[] PROGMEM = {"Вкл/Выкл"};
 const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
 const char MENU_TEMP[] PROGMEM = {"Уст.темп"};       //TODO
+const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
 const char MENU_INFO[] PROGMEM = {"Инфо"};
 const char MENU_EXIT[] PROGMEM = {"Выход"};
 
-const char MENU_INFO_HOME[] PROGMEM = {"Дом       %02d°C"};
-const char MENU_INFO_HEATER[] PROGMEM = {"Радиатор  %02d°C"};
+const char MENU_INFO_HOME[] PROGMEM = {"Дом      %+03d°C"};
+const char MENU_INFO_HEATER[] PROGMEM = {"Радиатор %+03d°C"};
 const char MENU_INFO_GSM[] PROGMEM = {"GSM сигнал  %02d%%"};
+// const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
 
 uint8_t current_menu = 0; //0 - homepage, 1 - main menu, 2 - info menu
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
@@ -104,20 +112,22 @@ LiquidScreen main_screen1(main_line1, main_line2);
 LiquidScreen main_screen2(main_line3, main_line4);
 LiquidScreen main_screen3(main_line5);
 
-LiquidLine info_line1(1, 0, MENU_INFO_HOME, t_home); //degree (char)223
-LiquidLine info_line2(1, 1, MENU_INFO_HEATER, t_heater);
+LiquidLine info_line1(1, 0, MENU_INFO_HOME, temp[0]);
+LiquidLine info_line2(1, 1, MENU_INFO_HEATER, temp[1]);
 LiquidLine info_line3(1, 0, MENU_INFO_GSM, gsm_signal);
+// LiquidLine info_line4(1, 1, MENU_INFO_RAM, memory_free);
 LiquidLine info_line4(1, 1, MENU_EXIT);
 LiquidScreen info_screen1(info_line1, info_line2);
 LiquidScreen info_screen2(info_line3, info_line4);
+// LiquidScreen info_screen3(info_line5);
 
 LiquidMenu main_menu(lcd, main_screen1, main_screen2, main_screen3, 1);
 LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
 
 LiquidSystem menu_system(main_menu, info_menu, 1);
 
-void func()
-{ // Blank function, it is attached to the lines so that they become focusable.
+void func() // Blank function, it is attached to the lines so that they become focusable.
+{
   PRINTLNF("hello!");
 }
 
@@ -126,8 +136,11 @@ void go_switch_relay()
   relayFlag = !relayFlag;
   digitalWrite(REL_PIN, relayFlag);
   PRINTLNF("relay switch!");
-  // lcd.clear();
-  // go_main_screen();
+  menu_system.switch_focus();
+  menu_system.switch_focus();
+  updateMainScreen = true;
+  clearMainSreen = true;
+  current_menu = 0;
 }
 
 void go_info_menu()
@@ -152,12 +165,12 @@ void go_main_screen()
   PRINTLNF("changing to main screen!");
   menu_system.switch_focus();
   updateMainScreen = true;
+  clearMainSreen = true;
   current_menu = 0;
 }
 
 void readEncoder()
 {
-
   encoder.service();
   enc_val += encoder.getValue(); //read encoder
   if (enc_val == last_val)
@@ -169,7 +182,7 @@ void readEncoder()
     return;
   }
   if ((max(enc_val, last_val) - min(enc_val, last_val)) >= 2)
-  { //if changed to 2 -> one turn
+  { //if difference more than 2 -> one turn
     if (last_val > enc_val)
     {
       PRINTLNF("enc ++");
@@ -203,7 +216,6 @@ void readButton()
     backlightON();
     if (current_menu == 0) //homepage
     {                      //go to main menu
-      // lcd.clear();
       menu_system.change_menu(main_menu);
       menu_system.change_screen(1);
       menu_system.switch_focus();
@@ -217,94 +229,25 @@ void readButton()
   }
 }
 
-const char *printDigits(uint16_t digits, bool leadingZero = true, bool blinking = false)
-{ //prints preceding colon and leading 0, blinking
-  timeString = String(digits);
-  if (blinking && ((millis() / 500 % 2) == 0))
-    return "";
-  if (digits < 10 && leadingZero)
-    timeString = "0" + String(digits);
-
-  return timeString.c_str();
-}
-
-void drawMainSreen()
-{
-  if (!updateMainScreen)
-    return;
-  // lcd.clear();
-  char two_digits_buff[4] = "  ";
-  lcd.createChar(5, celsius);
-  lcd.createChar(6, heater);
-  lcd.createChar(7, home);
-  lcd.setCursor(0, 0);
-  lcd.print(F("GSM "));
-  sprintf(two_digits_buff,"%02d",gsm_signal);
-  lcd.print(two_digits_buff);
-  lcd.write('%');
-  lcd.setCursor(0, 1);
-  relayFlag ? lcd.print(F("ВКЛ")) : lcd.print(F("ВЫКЛ"));
-  lcd.setCursor(11, 0);
-  sprintf(two_digits_buff,"%02d",hour());
-  lcd.print(two_digits_buff);
-  lcd.write(':');
-  sprintf(two_digits_buff,"%02d",minute());
-  lcd.print(two_digits_buff);
-  lcd.setCursor(5, 1);
-  lcd.write(6); //heater sign
-  sprintf(two_digits_buff,"%+03d",t_heater);
-  lcd.print(two_digits_buff);
-  lcd.write(5); //celsius
-  lcd.setCursor(11, 1);
-  lcd.write(7); //home sign
-  sprintf(two_digits_buff,"%+03d",t_home);
-  lcd.print(two_digits_buff);
-  lcd.write(5); //celsius
-  current_menu = 0;
-  updateMainScreen = false;
-}
-
 void readMeasurements() //send request to temp sensors
 {
   ds.reset();
   ds.write(0xCC, 0); // skip address (broadcast to all devices)
-  ds.write(0x44, 0); // start conversion
+  ds.write(0x44, 0); // start conversion (start temp measurement)
 
   timer.setTimeout(200L, readDSresponse);
 }
 
 void readDSresponse() //read response from sensor
 {
-  byte DSdata[2]; // first and last temp bytes and TODO add CRC    
-  // uint8_t temp_list[2] = {t_home, t_heater}; //TODO add PROGMEM
-  // char DSaddr[8];
-  // for (byte i = 0; i < 2; i++)
-  // {
-  //   strcpy_P(DSaddr, (char *)pgm_read_word(&(DSaddr_table[i]))); // Necessary casts and dereferencing, just copy.
+  for (byte i = 0; i < 2; i++)
+  {
+    ds.reset();
+    ds.select(DSaddr[i]);
+    ds.write(0xBE, 0); // read data from DS
 
-  //   ds.reset();
-  //   ds.select(DSaddr);
-  //   ds.write(0xBE, 0); // read data from first DS
-  //   DSdata[0] = ds.read();
-  //   DSdata[1] = ds.read();
-  //   temp_list[i] = ((int)DSdata[0] | (((int)DSdata[1]) << 8)) * 0.0625 + 0.03125;
-  // }
-
-  ds.reset();
-  ds.select(DSaddr1);
-  ds.write(0xBE, 0); // read data from first DS
-
-  DSdata[0] = ds.read();
-  DSdata[1] = ds.read();
-  t_home = ((int)DSdata[0] | (((int)DSdata[1]) << 8)) * 0.0625 + 0.03125;
-
-  ds.reset();
-  ds.select(DSaddr2);
-  ds.write(0xBE, 0); // read data from second DS
-
-  DSdata[0] = ds.read();
-  DSdata[1] = ds.read();
-  t_heater = ((int)DSdata[0] | (((int)DSdata[1]) << 8)) * 0.0625 + 0.03125;
+    temp[i] = ((int)ds.read() | (((int)ds.read()) << 8)) * 0.0625 + 0.03125; //first and second byte read, convert to int, TODO add CRC check
+  }
 
   if (current_menu == 0) //if main screen is displayed,
     updateMainScreen = true;
@@ -313,7 +256,7 @@ void readDSresponse() //read response from sensor
 void initGSM()
 {
   gsmSerial.begin(115200);
-  String loading = "загрузка";
+  String loading(F("загрузка"));
 
   pinMode(GSM_PIN, OUTPUT);
   digitalWrite(GSM_PIN, LOW);
@@ -333,12 +276,14 @@ void initGSM()
   while (true)
   {
     gsmSerial.println(F("AT+CPAS"));
-    if (gsmSerial.find("+CPAS:0"))
+    // strcpy_P(string_buff, PSTR("+CPAS:0")); //copy to buff GSM answer
+    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0"))))
       break;
 
     lcd.setCursor(3, 1); // display loading message
     loading.trim();
-    loading += ".   ";
+    strcpy_P(string_buff, PSTR(".   "));
+    loading += string_buff;
     lcd.print(loading);
     if (loading.length() > 22)
       loading = loading.substring(0, 16);
@@ -357,12 +302,13 @@ void requestTime() //request time from GSM
   PRINTLNF("request time from GSM");
 }
 
-void requestSignalQuality() //request signal quality from GSM
+void requestSignalAndRAM() //request signal quality from GSM
 {
   // cleanSerialGSM();
   gsmSerial.println(F("AT+CSQ"));
+  memory_free = freeMemory();
 #ifdef DEBUGGING
-  PRINTLN("freeMemory()=", freeMemory())
+  PRINTLN("freeMemory()=", memory_free)
 #endif
   // PRINTLNF("request signal quality from GSM");
 }
@@ -392,21 +338,21 @@ void readStringGSM()
   }
   if (strBuffer.length() < 4)
     return;
-  else if ((strBuffer.indexOf("RING") >= 0)) //return ring signal
+  else if ((strBuffer.indexOf(strcpy_P(string_buff, PSTR("RING"))) >= 0)) //return ring signal
   {
     gsmSerial.println(F("AT+CLCC"));
     backlightON();
     PRINTLNF("ringin!");
   }
-  else if ((strBuffer.indexOf("+CSQ") >= 0)) //return signal quality, command like +CSQ: 22,99
+  else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CSQ"))) >= 0) //return signal quality, command like +CSQ: 22,99
   {
-    strBuffer = strBuffer.substring(strBuffer.indexOf("+CSQ") + 6, 8); //return 22
+    strBuffer = strBuffer.substring(strBuffer.indexOf(string_buff) + 6, 8); //return 22
     gsm_signal = strBuffer.toInt() * 100 / 31;
     PRINTLN("signal quality=", gsm_signal);
   }
-  else if (strBuffer.indexOf("+CCLK") >= 0) //return time, command like +CCLK: "18/11/29,07:34:36+05"
+  else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CCLK:"))) >= 0) //return time, command like +CCLK: "18/11/29,07:34:36+05"
   {
-    strBuffer = strBuffer.substring(strBuffer.indexOf("+CCLK:") + 8, 30); //return 18/11/29,07:34:36+05
+    strBuffer = strBuffer.substring(strBuffer.indexOf(string_buff) + 8, 28); //return 18/11/29,07:34:36+05
     PRINTLN("time string=", strBuffer);
     byte parse_time_arr[7];                            // Year, Month, Day, Hour, Minute, Second, timeZone
     memset(parse_time_arr, 0, sizeof(parse_time_arr)); //set zeros
@@ -424,7 +370,7 @@ void readStringGSM()
     adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
     PRINTLNF("sync clock OK");
   }
-  else if (strBuffer.indexOf("+CLCC") >= 0)
+  else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CLCC"))) >= 0)
     if (checkNumber(strBuffer)) //check phone number +CLCC:
     {
       timer.setTimeout(5000L, hangUpGSM);
@@ -434,7 +380,7 @@ void readStringGSM()
       PRINTLNF("relay switch!");
 
       gsmSerial.println(F("ATA"));                       //answer call
-      mp3Player.volume(28);                              //set volume value. From 0 to 30
+      mp3Player.volume(30);                              //set volume value. From 0 to 30
       relayFlag ? mp3Player.play(1) : mp3Player.play(2); //play mp3
       // gsmSerial.println(F("AT+CHUP"));
       if (current_menu == 0)
@@ -452,12 +398,13 @@ void readStringGSM()
 bool checkNumber(String &phone_string) //check phone number +CLCC:
 {
   char buffer[12];
-  for (int i = 0; i < 6; i++)
+  byte list_size = sizeof(phone_table) / sizeof(phone_table[0]); //size of phones list
+  for (int i = 0; i < list_size; i++)                            //4 phone numbers
   {
     strcpy_P(buffer, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
     if (phone_string.indexOf(buffer) >= 0)
     {
-      PRINTLNF("Bingo!");
+      PRINTLN("calling number=", buffer);
       return true;
     }
   }
@@ -488,15 +435,46 @@ void initMP3()
   mp3Player.pause();
 }
 
-// void backlightSwitch()
-// {
-//   PRINTLNF("switch backlight");
-//   backlightFlag != backlightFlag;
-//   lcd.setBacklight(backlightFlag);
-//   menu_system.switch_focus();
-//   updateMainScreen = true;
-//   current_menu = 0;
-// }
+void initDS()
+{
+  uint8_t i = 0;
+  byte resolution;
+  while (ds.search(DSaddr[i]))
+  {
+    if (i > 1)
+    {
+      PRINTLNF("more than 2 devices, unable to load them all");
+      break;
+    }
+    if (OneWire::crc8(DSaddr[i], 7) != DSaddr[i][7])
+    {
+      PRINTLNF("CRC of temp sensor is not valid!");
+      break;
+    }
+    // PRINTLNF("read resolution");
+    ds.reset(); //read resolution
+    ds.select(DSaddr[i]);
+    ds.write(0xBE); // Read Scratchpad
+    for (uint8_t j = 0; j < 5; j++)
+    {
+      resolution = ds.read(); // we need fifth byte, (resolution) 7F=12bits 5F=11bits 3F=10bits 1F=9bits
+    }
+    PRINTLNHEX("DS18B20 resolution=", resolution);
+    if (resolution != 0x7f)
+    {
+      ds.reset();
+      ds.select(DSaddr[i]);
+      ds.write(0x4E);       // Write scratchpad command
+      ds.write(0);          // TL data
+      ds.write(0);          // TH data
+      ds.write(0x7F);       // Configuration Register (resolution) 7F=12bits 5F=11bits 3F=10bits 1F=9bits
+      ds.reset();           // This "reset" sequence is mandatory
+      ds.select(DSaddr[i]); // it allows the DS18B20 to understand the copy scratchpad to EEPROM command
+      ds.write(0x48);       // Copy Scratchpad command
+    }
+    i++;
+  }
+}
 
 void backlightOFF()
 {
@@ -505,18 +483,74 @@ void backlightOFF()
     PRINTLNF("switch backlight off");
     backlightFlag = false;
     lcd.setBacklight(backlightFlag);
+    updateMainScreen = true;
+    clearMainSreen = true;
   }
 }
 
 void backlightON()
 {
-  timer.restartTimer(2); //restart backlight timer
+  timer.restartTimer(2); //restart backlight timer, ID 2
   if (!backlightFlag)
   {
     PRINTLNF("switch backlight on");
     backlightFlag = true;
     lcd.setBacklight(backlightFlag);
+    updateMainScreen = true;
+    clearMainSreen = true;
   }
+}
+
+void drawMainSreen()
+{
+  if (!updateMainScreen)
+    return;
+  if (clearMainSreen)
+  {
+    lcd.clear();
+    clearMainSreen = false;
+  }
+  lcd.createChar(3, memory);
+  lcd.createChar(4, gsm);
+  lcd.createChar(5, celsius);
+  lcd.createChar(6, heater);
+  lcd.createChar(7, home);
+
+  lcd.setCursor(0, 0);
+  sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), hour());
+  lcd.print(two_digits_buff);
+  ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
+  sprintf(two_digits_buff, string_buff, minute());
+  lcd.print(two_digits_buff);
+
+  lcd.setCursor(0, 1);
+  lcd.write(3); //RAM sign
+  sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), memory_free);
+  lcd.print(two_digits_buff);
+
+  lcd.setCursor(12, 1);
+  lcd.write(4); //GSM sign
+  sprintf(two_digits_buff, string_buff, gsm_signal);
+  lcd.print(two_digits_buff);
+  lcd.write('%');
+
+  lcd.setCursor(12, 0);
+  relayFlag ? lcd.print(F("ВКЛ")) : lcd.print(F("ВЫКЛ"));
+
+  lcd.setCursor(6, 1);
+  lcd.write(6); //heater sign
+  sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%+03d")), temp[1]);
+  lcd.print(two_digits_buff);
+  lcd.write(5); //celsius
+
+  lcd.setCursor(6, 0);
+  lcd.write(7); //home sign
+  sprintf(two_digits_buff, string_buff, temp[0]);
+  lcd.print(two_digits_buff);
+  lcd.write(5); //celsius
+
+  current_menu = 0;
+  updateMainScreen = false;
 }
 
 void setup()
@@ -539,15 +573,13 @@ void setup()
   Serial.begin(9600);
 #endif
 
-  // sendDScommand(DSaddr1); //request temp from DS sensor
-
+  initDS();  //init DS temp modules
   initMP3(); //mp3 serial port by default is not listening
-
   initGSM(); //init GSM module, the last intialized port is listening
   delay(1000);
   requestTime(); //request time from GSM and sync internal clock
   delay(200);
-  requestSignalQuality();                        //request signal quality from GSM and sync internal clock
+  requestSignalAndRAM();                         //request signal quality from GSM and sync internal clock
   readMeasurements();                            //request temp
   menu_system.set_focusPosition(Position::LEFT); //init menu system
   main_line1.attach_function(1, go_switch_relay);
@@ -560,6 +592,7 @@ void setup()
   info_line2.attach_function(1, func);
   info_line3.attach_function(1, func);
   info_line4.attach_function(1, go_main_menu);
+  // info_line5.attach_function(1, go_main_menu);
 
   main_line1.set_asProgmem(1); //set PROGMEM menu lines
   main_line2.set_asProgmem(1);
@@ -571,11 +604,12 @@ void setup()
   info_line2.set_asProgmem(1);
   info_line3.set_asProgmem(1);
   info_line4.set_asProgmem(1);
+  // info_line5.set_asProgmem(1);
 
-  timer.setInterval(5000, readMeasurements);
-  timer.setInterval(SECS_PER_MIN * 5000L, backlightOFF); //auto backlight off 5 mins
+  timer.setInterval(1000, readMeasurements);
+  timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
-  timer.setInterval(10000L, requestSignalQuality);       //request signal quality every 10 secs
+  timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
 
   lcd.clear();
   drawMainSreen();
