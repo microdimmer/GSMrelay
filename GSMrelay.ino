@@ -1,4 +1,9 @@
-//TODO remove all strings objects, use DFPlayerMini_Fast, add shedule and temp automation, add preferences menu section, add voice temp information,add PROGMEM to all const strings
+//TODO remove all strings objects, 
+//use DFPlayerMini_Fast, 
+//add shedule and temp automation, 
+//add preferences menu section, 
+//add voice temp information, add read BUSY pin 
+//add PROGMEM to all const strings
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 // #define DEBUGGING
 #ifdef DEBUGGING
@@ -30,10 +35,10 @@
 #endif
 
 const char PROG_VERSION = '2';
-const char PHOME_NUMBER1[] PROGMEM = {"79227754426"};
-const char PHOME_NUMBER2[] PROGMEM = {"79044719617"};                                                   //pap
-const char PHOME_NUMBER3[] PROGMEM = {"79822219033"};                                                   //pap
-const char PHOME_NUMBER4[] PROGMEM = {"79226505965"};                                                   //tat
+const char PHOME_NUM1[] PROGMEM = {"79227754426"};
+const char PHOME_NUM2[] PROGMEM = {"79044719617"};                                                   //pap
+const char PHOME_NUM3[] PROGMEM = {"79822219033"};                                                   //pap
+const char PHOME_NUM4[] PROGMEM = {"79226505965"};                                                   //tat
 const uint8_t REL_PIN = 11;                                                                             //pin for Relay
 const uint8_t GSM_PIN = 9;                                                                              //pin for GSM
 const uint8_t TEMP_SENSOR_PIN = 12;                                                                     //pin for DS18B20
@@ -44,8 +49,10 @@ const uint8_t GSM_SERIAL_RX = 2;                                                
 const uint8_t GSM_SERIAL_TX = 3;                                                                        //pin for GSM serial
 const uint8_t MP3_SERIAL_RX = 4;                                                                        //pin for mp3 serial
 const uint8_t MP3_SERIAL_TX = 5;                                                                        //pin for mp3 serial
-const char *const phone_table[] PROGMEM = {PHOME_NUMBER1, PHOME_NUMBER2, PHOME_NUMBER3, PHOME_NUMBER4}; // phones table
+const uint8_t MP3_BUSY = 7; 
+const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, PHOME_NUM4}; // phones table
 
+#include <CircularBuffer.h> // https://github.com/rlogiacco/CircularBuffer
 #include <OneWire.h>             //for DS18B20
 #include <DFRobotDFPlayerMini.h> //DF MP3 Player mini
 // #include <DFPlayerMini_Fast.h> //DFPlayer MP3 mini https://github.com/scottpav/DFPlayerMini_Fast
@@ -84,6 +91,7 @@ int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_home_set = 0;
 int8_t gsm_signal = 0;
 uint16_t memory_free = 0;
+CircularBuffer<uint8_t,5> audio_queue;     // audio sequence size, can play five files continuously
 bool relayFlag = false;
 bool backlightFlag = true;
 bool updateMainScreen = true;
@@ -340,7 +348,7 @@ void readStringGSM()
     return;
   else if ((strBuffer.indexOf(strcpy_P(string_buff, PSTR("RING"))) >= 0)) //return ring signal
   {
-    gsmSerial.println(F("AT+CLCC"));
+    gsmSerial.println(F("AT+CLCC")); //returns list of current call numbers
     backlightON();
     PRINTLNF("ringin!");
   }
@@ -373,7 +381,7 @@ void readStringGSM()
   else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CLCC"))) >= 0)
     if (checkNumber(strBuffer)) //check phone number +CLCC:
     {
-      timer.setTimeout(5000L, hangUpGSM);
+      timer.setTimeout(15000L, hangUpGSM);
 
       relayFlag = !relayFlag;
       digitalWrite(REL_PIN, relayFlag);
@@ -382,6 +390,8 @@ void readStringGSM()
       gsmSerial.println(F("ATA"));                       //answer call
       mp3Player.volume(30);                              //set volume value. From 0 to 30
       relayFlag ? mp3Player.play(1) : mp3Player.play(2); //play mp3
+      playTemp(0); //play temp home
+      playTemp(1); //play temp heater
       // gsmSerial.println(F("AT+CHUP"));
       if (current_menu == 0)
       {
@@ -433,6 +443,58 @@ void initMP3()
   // }
   // delay(5000);
   mp3Player.pause();
+}
+
+bool isMP3Busy() {
+	return digitalRead(MP3_BUSY) == LOW;
+}
+
+bool addAudio(uint8_t num_track) {
+  if (!audio_queue.isFull()) 
+    return audio_queue.unshift(num_track);
+  else
+    return false;
+}
+
+void playAudio() {
+  if ((audio_queue.isEmpty() || isMP3Busy())) {
+    return;
+  }
+  else 
+    mp3Player.play(audio_queue.shift());
+}
+
+void playTemp(uint8_t temp_sens_num) { // TODO
+  if (temp[temp_sens_num]==-99) { // has no data
+    return;
+  }
+  if (temp_sens_num==0) //play temp source (temp1 or temp2)
+    addAudio(35); // home temp
+  else
+    addAudio(34); // heater temp
+  if (temp[temp_sens_num]==0) {
+    addAudio(28); // //play zero temp
+    return;
+  }
+  bool sign = (temp[temp_sens_num]>0); 
+  sign ? addAudio(30) : addAudio(29); //play sign
+  uint8_t abs_temp = abs(temp[temp_sens_num]);
+  if ((abs_temp > 0) && (abs_temp <= 20)) {
+    addAudio(abs_temp); //play temp 1 - 20
+  }
+  else {
+    for (uint8_t i = 2; i < 9; i++) //play temp 21 - 99
+    {
+      uint8_t first_digit = i*10;
+      uint8_t last_digit = first_digit+10;
+      if ( (abs_temp >= first_digit) && (abs_temp < last_digit)) {
+        uint8_t digits = abs_temp - first_digit;
+        addAudio(18+i);
+        if (digits !=0 ) addAudio(digits);
+      }
+    }
+  }
+  addAudio(31);//play 'degree'
 }
 
 void initDS()
@@ -623,4 +685,5 @@ void loop()
   readEncoder();
   drawMainSreen();
   readStringGSM();
+  playAudio();
 }
