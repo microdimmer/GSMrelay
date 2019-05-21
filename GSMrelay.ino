@@ -248,13 +248,19 @@ void readMeasurements() //send request to temp sensors
 
 void readDSresponse() //read response from sensor
 {
-  for (byte i = 0; i < 2; i++)
+  static uint8_t buf[9];
+  for (uint8_t i = 0; i < 2; i++)
   {
     ds.reset();
     ds.select(DSaddr[i]);
     ds.write(0xBE, 0); // read data from DS
-
-    temp[i] = ((int)ds.read() | (((int)ds.read()) << 8)) * 0.0625 + 0.03125; //first and second byte read, convert to int, TODO add CRC check
+    
+    ds.read_bytes(buf, 9);
+    if (OneWire::crc8(buf, 8) == buf[8] )  // check CRC
+      temp[i] = ((int)buf[0] | (((int)buf[1]) << 8)) * 0.0625 + 0.03125; //first and second byte read, convert to int
+    else 
+      temp[i] = -99; // CRC is not valid
+    //temp[i] = ((int)ds.read() | (((int)ds.read()) << 8)) * 0.0625 + 0.03125; //first and second byte read, convert to int, TODO add CRC check
   }
 
   if (current_menu == 0) //if main screen is displayed,
@@ -323,7 +329,7 @@ void requestSignalAndRAM() //request signal quality from GSM
 
 void readStringGSM()
 {
-  String strBuffer;
+  static String strBuffer;
   // while (gsmSerial.available())
   //   Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
 
@@ -472,6 +478,7 @@ void playTemp(uint8_t temp_sens_num) { // TODO
     addAudio(35); // home temp
   else
     addAudio(34); // heater temp
+    
   if (temp[temp_sens_num]==0) {
     addAudio(28); // //play zero temp
     return;
