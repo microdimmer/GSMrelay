@@ -60,7 +60,7 @@ const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, P
 #include <TimeLib.h>        //timekeeping
 #include <SoftwareSerial.h> //for GSM modem A6
 #include <SimpleTimer.h>    // Handy timers
-#include <LiquidMenu.h>     //The menu wrapper library
+#include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/ssilver2007/LCD_1602_RUS and https://github.com/johnrickman/LiquidCrystal_I2C
 
 OneWire ds(TEMP_SENSOR_PIN);
 byte DSaddr[2][8]; // first and second DS18B20 addresses, home 28FFE44750170473 heater 28FF2FDAC11704DE
