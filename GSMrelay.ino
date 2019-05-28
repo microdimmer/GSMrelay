@@ -2,7 +2,7 @@
 //use DFPlayerMini_Fast, 
 //add shedule and temp automation, 
 //add preferences menu section, 
-//add voice temp information, add read BUSY pin 
+//add voice temp information, add read BUSY pin +
 //add PROGMEM to all const strings
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 // #define DEBUGGING
@@ -84,8 +84,8 @@ const char celsius[] PROGMEM = {0x18, 0x18, 0x00, 0x07, 0x05, 0x04, 0x05, 0x07};
 const char gsm[] PROGMEM = {0x01, 0x03, 0x1F, 0x11, 0x1F, 0x15, 0x1B, 0x1F};
 const char memory[] PROGMEM = {0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00};
 
-char string_buff[8];
-char two_digits_buff[4];
+char string_buff[8]; //string buffer
+
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_heater_set = 0;
 // int8_t t_home_set = 0;
@@ -237,7 +237,7 @@ void readButton()
   }
 }
 
-void readMeasurements() //send request to temp sensors
+void requestTemp() //send request to temp sensors
 {
   ds.reset();
   ds.write(0xCC, 0); // skip address (broadcast to all devices)
@@ -270,12 +270,11 @@ void readDSresponse() //read response from sensor
 void initGSM()
 {
   gsmSerial.begin(115200);
-  String loading(F("загрузка"));
 
   pinMode(GSM_PIN, OUTPUT);
   digitalWrite(GSM_PIN, LOW);
   lcd.setCursor(3, 1); // display loading message
-  lcd.print(loading);
+  lcd.print(F("загрузка    ")); // clear display 
   delay(2000);
   digitalWrite(GSM_PIN, HIGH);
 
@@ -286,21 +285,27 @@ void initGSM()
     delay(50);
   }
   gsmSerial.begin(9600);
-
+  
+  char loading_string[5] = {0};
+  // char loading_string[5];
+  // //strcpy_P(loading_string, PSTR("    "));
+  // memset(loading_string,' ',4);
+  // loading_string[5]=0; //null terminator, end of line
+  uint8_t i = 0;
   while (true)
   {
     gsmSerial.println(F("AT+CPAS"));
-    // strcpy_P(string_buff, PSTR("+CPAS:0")); //copy to buff GSM answer
-    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0"))))
+    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) //copy PROGMEM to buff and find answer in GSM serial 
       break;
 
-    lcd.setCursor(3, 1); // display loading message
-    loading.trim();
-    strcpy_P(string_buff, PSTR(".   "));
-    loading += string_buff;
-    lcd.print(loading);
-    if (loading.length() > 22)
-      loading = loading.substring(0, 16);
+    lcd.setCursor(11, 1); // display loading animation
+    loading_string[i]='.';
+    lcd.print(loading_string);
+    if (loading_string[4] == '.') {
+      strcpy_P(loading_string, PSTR("    "));
+      i = 0;
+    }
+    i++;
     delay(500);
     PRINTLNF("initialize GSM...");
   }
@@ -368,9 +373,9 @@ void readStringGSM()
   {
     strBuffer = strBuffer.substring(strBuffer.indexOf(string_buff) + 8, 28); //return 18/11/29,07:34:36+05
     PRINTLN("time string=", strBuffer);
-    byte parse_time_arr[7];                            // Year, Month, Day, Hour, Minute, Second, timeZone
-    memset(parse_time_arr, 0, sizeof(parse_time_arr)); //set zeros
-    for (byte i = 0, str_index; i < 7; i++, str_index += 3)
+    uint8_t parse_time_arr[7] = {0};                            // Year, Month, Day, Hour, Minute, Second, timeZone, set zeros
+    // memset(parse_time_arr, 0, sizeof(parse_time_arr)); //set zeros
+    for (uint8_t i = 0, str_index; i < 7; i++, str_index += 3)
     {
       parse_time_arr[i] = strBuffer.substring(str_index, str_index + 2).toInt(); // Year, Month, Day, Hour, Minute, Second, timeZone
       // if (parse_time_arr[i] == 0)
@@ -572,6 +577,8 @@ void backlightON()
 
 void drawMainSreen()
 {
+  static char two_digits_buff[4];
+
   if (!updateMainScreen)
     return;
   if (clearMainSreen)
@@ -584,7 +591,7 @@ void drawMainSreen()
   lcd.createChar(5, celsius);
   lcd.createChar(6, heater);
   lcd.createChar(7, home);
-
+  
   lcd.setCursor(0, 0);
   sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), hour());
   lcd.print(two_digits_buff);
@@ -636,8 +643,7 @@ void setup()
   lcd.print(F("0."));
   lcd.print(PROG_VERSION);
   lcd.setCursor(3, 1);
-  lcd.print(F("загрузка...")); //init display
-
+  // lcd.print(F("загрузка..."));
 #ifdef DEBUGGING
   Serial.begin(9600);
 #endif
@@ -645,11 +651,12 @@ void setup()
   initDS();  //init DS temp modules
   initMP3(); //mp3 serial port by default is not listening
   initGSM(); //init GSM module, the last intialized port is listening
-  delay(1000);
-  requestTime(); //request time from GSM and sync internal clock
-  delay(200);
-  requestSignalAndRAM();                         //request signal quality from GSM and sync internal clock
-  readMeasurements();                            //request temp
+  // delay(1000);
+  requestTime(); //request time from GSM
+  requestTemp();                                 //request temp
+  // delay(200);
+  requestSignalAndRAM();                         //request signal quality from GSM
+  
   menu_system.set_focusPosition(Position::LEFT); //init menu system
   main_line1.attach_function(1, go_switch_relay);
   main_line2.attach_function(1, func);
@@ -675,15 +682,16 @@ void setup()
   info_line4.set_asProgmem(1);
   // info_line5.set_asProgmem(1);
 
-  timer.setInterval(1000, readMeasurements);
+  timer.setInterval(1000, requestTemp);
   timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
 
+  readStringGSM();
   lcd.clear();
   drawMainSreen();
 
-  gsmSerial.setTimeout(100); //set timeout for readString() func
+  gsmSerial.setTimeout(100); //set timeout for readString() func ??
 }
 void loop()
 {
