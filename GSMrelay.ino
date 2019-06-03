@@ -90,6 +90,7 @@ int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_heater_set = 0;
 // int8_t t_home_set = 0;
 int8_t gsm_signal = 0;
+bool gsm_busy = false;
 uint16_t memory_free = 0;
 CircularBuffer<uint8_t,5> audio_queue;     // audio sequence size, can play five files continuously
 bool relayFlag = false;
@@ -274,7 +275,7 @@ void initGSM()
   pinMode(GSM_PIN, OUTPUT);
   digitalWrite(GSM_PIN, LOW);
   lcd.setCursor(3, 1); // display loading message
-  lcd.print(F("загрузка    ")); // clear display 
+  lcd.print(F("загрузка     ")); // clear display 
   delay(2000);
   digitalWrite(GSM_PIN, HIGH);
 
@@ -286,11 +287,7 @@ void initGSM()
   }
   gsmSerial.begin(9600);
   
-  char loading_string[5] = {0};
-  // char loading_string[5];
-  // //strcpy_P(loading_string, PSTR("    "));
-  // memset(loading_string,' ',4);
-  // loading_string[5]=0; //null terminator, end of line
+  char loading_string[6] = {0};
   uint8_t i = 0;
   while (true)
   {
@@ -299,13 +296,13 @@ void initGSM()
       break;
 
     lcd.setCursor(11, 1); // display loading animation
-    loading_string[i]='.';
     lcd.print(loading_string);
-    if (loading_string[4] == '.') {
-      strcpy_P(loading_string, PSTR("    "));
+    loading_string[i]='.';
+    i++;
+    if (i == 6) {
+      strcpy_P(loading_string, PSTR("     "));
       i = 0;
     }
-    i++;
     delay(500);
     PRINTLNF("initialize GSM...");
   }
@@ -334,7 +331,7 @@ void requestSignalAndRAM() //request signal quality from GSM
 
 void readStringGSM()
 {
-  static String strBuffer;
+  String strBuffer;
   // while (gsmSerial.available())
   //   Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
 
@@ -389,9 +386,10 @@ void readStringGSM()
     adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
     PRINTLNF("sync clock OK");
   }
-  else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CLCC"))) >= 0)
+  else if ((strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CLCC"))) >= 0) && !gsm_busy)
     if (checkNumber(strBuffer)) //check phone number +CLCC:
     {
+      gsm_busy = true;
       timer.setTimeout(15000L, hangUpGSM);
 
       relayFlag = !relayFlag;
@@ -399,8 +397,9 @@ void readStringGSM()
       PRINTLNF("relay switch!");
 
       gsmSerial.println(F("ATA"));                       //answer call
+      PRINTLNF("answer call");
       mp3Player.volume(30);                              //set volume value. From 0 to 30
-      relayFlag ? mp3Player.play(1) : mp3Player.play(2); //play mp3
+      relayFlag ? addAudio(32) : addAudio(33); //play switch on/off
       playTemp(0); //play temp home
       playTemp(1); //play temp heater
       // gsmSerial.println(F("AT+CHUP"));
@@ -441,6 +440,8 @@ void cleanSerialGSM()
 void hangUpGSM()
 {
   gsmSerial.println(F("AT+CHUP")); //hang up all calls
+  gsm_busy = false;
+  //cleanSerialGSM(); // ??
 }
 
 void initMP3()
@@ -462,7 +463,7 @@ bool isMP3Busy() {
 
 bool addAudio(uint8_t num_track) {
   if (!audio_queue.isFull()) 
-    return audio_queue.unshift(num_track);
+    return audio_queue.push(num_track);
   else
     return false;
 }
@@ -589,8 +590,8 @@ void drawMainSreen()
   lcd.createChar(3, memory);
   lcd.createChar(4, gsm);
   lcd.createChar(5, celsius);
-  lcd.createChar(6, heater);
-  lcd.createChar(7, home);
+  lcd.createChar(6, home);
+  lcd.createChar(7, heater);
   
   lcd.setCursor(0, 0);
   sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), hour());
@@ -613,17 +614,18 @@ void drawMainSreen()
   lcd.setCursor(12, 0);
   relayFlag ? lcd.print(F("ВКЛ")) : lcd.print(F("ВЫКЛ"));
 
-  lcd.setCursor(6, 1);
-  lcd.write(6); //heater sign
-  sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%+03d")), temp[1]);
-  lcd.print(two_digits_buff);
-  lcd.write(5); //celsius
-
-  lcd.setCursor(6, 0);
-  lcd.write(7); //home sign
-  sprintf(two_digits_buff, string_buff, temp[0]);
-  lcd.print(two_digits_buff);
-  lcd.write(5); //celsius
+  for (uint8_t i = 0; i<=1; i++) {
+    lcd.setCursor(6, i);
+    lcd.write(6+i); //6 home sign, 7 heater sign
+    if (temp[i]==-99) {
+    lcd.print(strcpy_P(two_digits_buff, PSTR("--"))); //temp is invalid show --
+    }
+    else { 
+      sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%+03d")), temp[i]);
+      lcd.print(two_digits_buff);
+    }
+    lcd.write(5); //celsius
+  }
 
   current_menu = 0;
   updateMainScreen = false;
@@ -651,10 +653,10 @@ void setup()
   initDS();  //init DS temp modules
   initMP3(); //mp3 serial port by default is not listening
   initGSM(); //init GSM module, the last intialized port is listening
-  // delay(1000);
+  delay(1000); //delay to initialize SIM card
   requestTime(); //request time from GSM
   requestTemp();                                 //request temp
-  // delay(200);
+   delay(200);
   requestSignalAndRAM();                         //request signal quality from GSM
   
   menu_system.set_focusPosition(Position::LEFT); //init menu system
