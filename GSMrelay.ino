@@ -3,7 +3,8 @@
 //add shedule and temp automation, 
 //add preferences menu section, 
 //add voice temp information, add read BUSY pin +
-//add PROGMEM to all const strings
+//add PROGMEM to all const strings +
+//add money check
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 // #define DEBUGGING
 #ifdef DEBUGGING
@@ -52,7 +53,7 @@ const uint8_t MP3_SERIAL_TX = 5;                                                
 const uint8_t MP3_BUSY = 7; 
 const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, PHOME_NUM4}; // phones table
 
-#include <CircularBuffer.h> // https://github.com/rlogiacco/CircularBuffer
+#include <CircularBuffer.h> // https://github.com/rlogiacco/CircularBuffer //TODO del
 #include <OneWire.h>             //for DS18B20
 #include <DFRobotDFPlayerMini.h> //DF MP3 Player mini
 // #include <DFPlayerMini_Fast.h> //DFPlayer MP3 mini https://github.com/scottpav/DFPlayerMini_Fast
@@ -287,8 +288,8 @@ void initGSM()
   }
   gsmSerial.begin(9600);
   
-  char loading_string[6] = {0};
-  uint8_t i = 0;
+  // char loading_string[6] = {0};
+  // uint8_t i = 0;
   while (true)
   {
     gsmSerial.println(F("AT+CPAS"));
@@ -296,19 +297,36 @@ void initGSM()
       break;
 
     lcd.setCursor(11, 1); // display loading animation
-    lcd.print(loading_string);
-    loading_string[i]='.';
-    i++;
-    if (i == 6) {
-      strcpy_P(loading_string, PSTR("     "));
-      i = 0;
-    }
-    delay(500);
+    // lcd.print(loading_string);
+    // loading_string[i]='.';
+    // i++;
+    // if (i == 6) {
+    //   strcpy_P(loading_string, PSTR("     "));
+    //   i = 0;
+    // }
+    loadingAnimation(500);
+    // delay(500);
     PRINTLNF("initialize GSM...");
   }
   gsmSerial.println(F("ATE0")); //echo off
   cleanSerialGSM();
   PRINTLNF("init GSM OK");
+}
+
+void loadingAnimation(uint32_t a_delay) //loading animation TODO
+{
+static char string_buff[6] = {0};
+lcd.print(string_buff);
+delay(a_delay);
+
+char *p = strrchr(string_buff,'.');
+if (p == NULL)
+  string_buff[0] = '.';
+else
+  ++p = '.';
+
+if (string_buff[5]=='.')
+  strcpy_P(string_buff, PSTR("     "));
 }
 
 void requestTime() //request time from GSM
@@ -331,63 +349,58 @@ void requestSignalAndRAM() //request signal quality from GSM
 
 void readStringGSM()
 {
-  String strBuffer;
+  char GSMstring[64] = {0};
   // while (gsmSerial.available())
   //   Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
 
   while (gsmSerial.available())
   {
-    //   // PRINTLN("GSM string=",gsmSerial.readStringUntil("\n"));
-    //   // PRINTLN("GSM string=",gsmSerial.readStringUntil("\0"));
-    //   // PRINTLN("GSM string=",gsmSerial.readStringUntil("\r"));
-    // strBuffer = gsmSerial.readStringUntil("\r");
-    strBuffer = gsmSerial.readStringUntil(0x0a); // \n	line feed - new line
-    strBuffer.trim();
+    // PRINTLN("GSM string=",gsmSerial.readStringUntil("\n"));
+    gsmSerial.findUntil(GSMstring,'\n'); // \n	line feed - new line
+    // strBuffer.trim();
     // PRINTLN("strBuffer=", strBuffer);
     // PRINTLN("length()=", strBuffer.length());
     break;
-    // while (gsmSerial.available())
-    // {
-    //   i = (gsmSerial.read());
-    //   strBuffer += i;
-    // }
   }
-  if (strBuffer.length() < 4)
+  if (sizeof(GSMstring) < 4)
     return;
-  else if ((strBuffer.indexOf(strcpy_P(string_buff, PSTR("RING"))) >= 0)) //return ring signal
+  // else if ((strBuffer.indexOf(strcpy_P(string_buff, PSTR("RING"))) >= 0)) //return ring signal
+  else if (strstr_P(GSMstring, PSTR("RING")) != NULL) //return ring signal
   {
     gsmSerial.println(F("AT+CLCC")); //returns list of current call numbers
     backlightON();
     PRINTLNF("ringin!");
   }
-  else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CSQ"))) >= 0) //return signal quality, command like +CSQ: 22,99
+  // else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CSQ"))) >= 0) //return signal quality, command like +CSQ: 22,99
+  else if (strstr_P(GSMstring, PSTR("+CSQ: ")) != NULL) //return signal quality, command like +CSQ: 22,99
   {
-    strBuffer = strBuffer.substring(strBuffer.indexOf(string_buff) + 6, 8); //return 22
-    gsm_signal = strBuffer.toInt() * 100 / 31;
+    // strBuffer = strBuffer.substring(strBuffer.indexOf(string_buff) + 6, 8); //return 22
+    strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CSQ: "))+6,2);
+    GSMstring[2] ='\0';// must return 22
+    gsm_signal = atoi(GSMstring) * 100 / 31; // convert to percent,dont need to number check, if needed, use sscanf or strtol
     PRINTLN("signal quality=", gsm_signal);
   }
-  else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CCLK:"))) >= 0) //return time, command like +CCLK: "18/11/29,07:34:36+05"
+  // else if (strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CCLK:"))) >= 0) //return time, command like +CCLK: "18/11/29,07:34:36+05"
+  else if (strstr_P(GSMstring, PSTR("+CCLK: ")) != NULL) //return time, command like +CCLK: "18/11/29,07:34:36+05"
   {
-    strBuffer = strBuffer.substring(strBuffer.indexOf(string_buff) + 8, 28); //return 18/11/29,07:34:36+05
-    PRINTLN("time string=", strBuffer);
-    uint8_t parse_time_arr[7] = {0};                            // Year, Month, Day, Hour, Minute, Second, timeZone, set zeros
-    // memset(parse_time_arr, 0, sizeof(parse_time_arr)); //set zeros
-    for (uint8_t i = 0, str_index; i < 7; i++, str_index += 3)
+    strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CCLK: "))+8,20); 
+    GSMstring[20] ='\0'; //must return 18/11/29,07:34:36+05\0
+    PRINTLN("time string=", GSMstring);// Year, Month, Day, Hour, Minute, Second, timeZone
+    uint8_t i = 0;
+    static uint8_t parse_time_arr[7];// Year, Month, Day, Hour, Minute, Second, timeZone, set zeros
+    char *search_p = strtok_P(GSMstring, PSTR("/,:+"));
+    memset(parse_time_arr, 0, sizeof(parse_time_arr)); //set zeros
+    while (search_p != NULL)
     {
-      parse_time_arr[i] = strBuffer.substring(str_index, str_index + 2).toInt(); // Year, Month, Day, Hour, Minute, Second, timeZone
-      // if (parse_time_arr[i] == 0)
-      // {
-      //   PRINTLN("parse_time_arr[i]=", parse_time_arr[i]);
-      //   PRINTLNF("sync clock fault!");
-      //   return;
-      // }
-    }
+      parse_time_arr[i++] = atoi(search_p);
+      search_p = strtok_P(NULL, PSTR("/,:+"));
+    }                    
     setTime(parse_time_arr[3], parse_time_arr[4], parse_time_arr[5], parse_time_arr[0], parse_time_arr[1], parse_time_arr[2]); //set time and date
     adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
     PRINTLNF("sync clock OK");
   }
-  else if ((strBuffer.indexOf(strcpy_P(string_buff, PSTR("+CLCC"))) >= 0) && !gsm_busy)
-    if (checkNumber(strBuffer)) //check phone number +CLCC:
+  else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy)
+    if (checkNumber(GSMstring)) //check phone number +CLCC:
     {
       gsm_busy = true;
       timer.setTimeout(15000L, hangUpGSM);
@@ -415,16 +428,17 @@ void readStringGSM()
     }
 }
 
-bool checkNumber(String &phone_string) //check phone number +CLCC:
+bool checkNumber(const char * string_number) //check phone number +CLCC:
 {
-  char buffer[12];
-  byte list_size = sizeof(phone_table) / sizeof(phone_table[0]); //size of phones list
+  static const uint8_t list_size = sizeof(phone_table) / sizeof(phone_table[0]); //size of phones list
+  static char phone_buff[12];
+  // strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
   for (int i = 0; i < list_size; i++)                            //4 phone numbers
   {
-    strcpy_P(buffer, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
-    if (phone_string.indexOf(buffer) >= 0)
+    strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
+    if (strstr(string_number, phone_buff) != NULL)
     {
-      PRINTLN("calling number=", buffer);
+      PRINTLN("calling number=", phone_buff);
       return true;
     }
   }
@@ -656,7 +670,7 @@ void setup()
   delay(1000); //delay to initialize SIM card
   requestTime(); //request time from GSM
   requestTemp();                                 //request temp
-   delay(200);
+  delay(200);
   requestSignalAndRAM();                         //request signal quality from GSM
   
   menu_system.set_focusPosition(Position::LEFT); //init menu system
@@ -684,7 +698,7 @@ void setup()
   info_line4.set_asProgmem(1);
   // info_line5.set_asProgmem(1);
 
-  timer.setInterval(1000, requestTemp);
+  timer.setInterval(1000, requestTemp); //request temp once a second
   timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
@@ -693,7 +707,7 @@ void setup()
   lcd.clear();
   drawMainSreen();
 
-  gsmSerial.setTimeout(100); //set timeout for readString() func ??
+  gsmSerial.setTimeout(100); // sets the maximum number of milliseconds to wait for readString()
 }
 void loop()
 {
