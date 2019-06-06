@@ -1,10 +1,10 @@
-//TODO remove all strings objects, 
+//TODO remove all strings objects, +
 //use DFPlayerMini_Fast, 
 //add shedule and temp automation, 
 //add preferences menu section, 
 //add voice temp information, add read BUSY pin +
 //add PROGMEM to all const strings +
-//add money check
+//add balance check
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 //#define DEBUGGING
 #ifdef DEBUGGING
@@ -277,7 +277,9 @@ void initGSM()
   digitalWrite(GSM_PIN, LOW);
   lcd.setCursor(3, 1); // display loading message
   lcd.print(F("загрузка     ")); // clear display 
-  delay(2000);
+  lcd.setCursor(11, 1);
+  loadingAnimation(500,4); //display loading animation
+  // delay(2000);
   digitalWrite(GSM_PIN, HIGH);
 
   PRINTLNF("trying to set 9600");
@@ -295,17 +297,8 @@ void initGSM()
     gsmSerial.println(F("AT+CPAS"));
     if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) //copy PROGMEM to buff and find answer in GSM serial 
       break;
-
-    lcd.setCursor(11, 1); // display loading animation
-    // lcd.print(loading_string);
-    // loading_string[i]='.';
-    // i++;
-    // if (i == 6) {
-    //   strcpy_P(loading_string, PSTR("     "));
-    //   i = 0;
-    // }
-    loadingAnimation(300);//joke about traktorista
-    // delay(500);
+    
+    loadingAnimation(300);// display loading animation, joke about traktorista
     PRINTLNF("initialize GSM...");
   }
   gsmSerial.println(F("ATE0")); //echo off
@@ -313,20 +306,25 @@ void initGSM()
   PRINTLNF("init GSM OK");
 }
 
-void loadingAnimation(uint32_t a_delay) //loading animation TODO
+void loadingAnimation(uint32_t a_delay, uint8_t count = 1) //loading animation TODO
 {
-static char string_buff[6] = {0};
-lcd.print(string_buff);
-delay(a_delay);
-PRINTLN("string_buff=", string_buff);
-char *p = strrchr(string_buff,'.');
-if (p == NULL)
-  string_buff[0] = '.';
-else
-  ++*p = '.';
+  for (uint8_t i = 0; i < count; i++)
+  {
+    static char string_buff[6] = {0};
+    lcd.print(string_buff);
+    delay(a_delay);
+    PRINTLN("string_buff=", string_buff);
+    char *p = strrchr(string_buff,'.');
+    if (p == NULL)
+      string_buff[0] = '.';
+    else
+      *++p = '.';
 
-if (string_buff[5]=='.')
-  strcpy_P(string_buff, PSTR("     "));
+    if (string_buff[5]=='.')
+      strcpy_P(string_buff, PSTR("     "));
+      // memset(string_buff,0,sizeof(string_buff));
+  }
+
 }
 
 void requestTime() //request time from GSM
@@ -334,6 +332,11 @@ void requestTime() //request time from GSM
   // cleanSerialGSM();
   gsmSerial.println(F("AT+CCLK?"));
   PRINTLNF("request time from GSM");
+  gsmSerial.println(F("AT+CUSD=1,\"#105#\"")); // test all
+  // gsmSerial.println(F("AT+CUSD=1,\"*105#\""));
+  // gsmSerial.println(F("ATD#102#"));
+  // gsmSerial.println(F("ATD*102#"));
+  PRINTLNF("request balance from GSM");
 }
 
 void requestSignalAndRAM() //request signal quality from GSM
@@ -650,7 +653,6 @@ void setup()
   lcd.print(F("0."));
   lcd.print(PROG_VERSION);
   lcd.setCursor(3, 1);
-  // lcd.print(F("загрузка..."));
 #ifdef DEBUGGING
   Serial.begin(9600);
 #endif
