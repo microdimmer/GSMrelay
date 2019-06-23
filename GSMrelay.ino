@@ -6,7 +6,7 @@
 //add PROGMEM to all const strings +
 //add balance check
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
-//#define DEBUGGING
+#define DEBUGGING
 #ifdef DEBUGGING
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 #define PRINTLNF(s)       \
@@ -269,6 +269,27 @@ void readDSresponse() //read response from sensor
     updateMainScreen = true;
 }
 
+void loadingAnimation(uint32_t a_delay, uint8_t count = 1) //loading animation TODO
+{
+  for (uint8_t i = 0; i < count; i++)
+  {
+    static char string_buff[6] = {0};
+    lcd.setCursor(11, 1);
+    lcd.print(string_buff);
+    delay(a_delay);
+//    PRINTLN("string_buff=", string_buff);
+    char *p = strrchr(string_buff,'.');
+    if (p == NULL)
+      string_buff[0] = '.';
+    else
+      *++p = '.';
+
+    if (string_buff[5]=='.')
+      strcpy_P(string_buff, PSTR("     "));
+      // memset(string_buff,0,sizeof(string_buff));
+  }
+}
+
 void initGSM()
 {
   gsmSerial.begin(115200);
@@ -298,51 +319,34 @@ void initGSM()
     if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) //copy PROGMEM to buff and find answer in GSM serial 
       break;
     
-    loadingAnimation(300);// display loading animation, joke about traktorista
+    loadingAnimation(500);// display loading animation, joke about traktorista
     PRINTLNF("initialize GSM...");
   }
   gsmSerial.println(F("ATE0")); //echo off
+  loadingAnimation(500);
+  gsmSerial.println(F("AT+CSCS=\"GSM\"")); // "GSM","HEX","PCCP936","UCS2
   cleanSerialGSM();
   PRINTLNF("init GSM OK");
-}
-
-void loadingAnimation(uint32_t a_delay, uint8_t count = 1) //loading animation TODO
-{
-  for (uint8_t i = 0; i < count; i++)
-  {
-    static char string_buff[6] = {0};
-    lcd.print(string_buff);
-    delay(a_delay);
-    PRINTLN("string_buff=", string_buff);
-    char *p = strrchr(string_buff,'.');
-    if (p == NULL)
-      string_buff[0] = '.';
-    else
-      *++p = '.';
-
-    if (string_buff[5]=='.')
-      strcpy_P(string_buff, PSTR("     "));
-      // memset(string_buff,0,sizeof(string_buff));
-  }
-
 }
 
 void requestTime() //request time from GSM
 {
   // cleanSerialGSM();
-  gsmSerial.println(F("AT+CCLK?"));
+//  gsmSerial.println(F("AT+CCLK?"));
   PRINTLNF("request time from GSM");
-  gsmSerial.println(F("AT+CUSD=1,\"#105#\"")); // test all
-  // gsmSerial.println(F("AT+CUSD=1,\"*105#\""));
-  // gsmSerial.println(F("ATD#102#"));
-  // gsmSerial.println(F("ATD*102#"));
+
+  delay(100);
+  gsmSerial.println(F("at+cscs=?")); // test all
+  delay(100);
+   gsmSerial.println(F("AT+CUSD=1,\"#105#\",15")); // test all
+//   delay(5000);
   PRINTLNF("request balance from GSM");
 }
 
 void requestSignalAndRAM() //request signal quality from GSM
 {
   // cleanSerialGSM();
-  gsmSerial.println(F("AT+CSQ"));
+//  gsmSerial.println(F("AT+CSQ"));
   memory_free = freeMemory();
 #ifdef DEBUGGING
   PRINTLN("freeMemory()=", memory_free)
@@ -354,8 +358,8 @@ void readStringGSM()
 {
   static char GSMstring[64];
   memset(GSMstring,0,sizeof(GSMstring));
-  // while (gsmSerial.available())
-  //   Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
+//   while (gsmSerial.available())
+//     Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
   if (gsmSerial.available()) {
     if (gsmSerial.readBytesUntil('\n',GSMstring,sizeof(GSMstring)) < 4 ) { // \n  line feed - new line 0x0a
 //      PRINTLN("GSMstring=", GSMstring);
@@ -392,7 +396,19 @@ void readStringGSM()
       adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
       PRINTLNF("sync clock OK");
     }
-    else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy)
+    else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1
+    {
+      PRINTLN("GSMstring=", GSMstring);
+      strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64);
+//      strncpy(GSMstring,GSMstring,strstr(GSMstring, "\""));
+//      GSMstring[30] = '\0'; 
+      String asd = GSMstring;
+      PRINTLN("GSMstring=", asd);
+      String test;
+      Decode7bit(asd,test);
+       PRINTLN("DECODE2=", test);
+    }
+    else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy) {
       if (checkNumber(GSMstring)) //check phone number +CLCC:
       {
         gsm_busy = true;
@@ -420,6 +436,31 @@ void readStringGSM()
         cleanSerialGSM();
       }
     }
+//    else
+//      PRINTLN("GSMstring=", GSMstring);
+  }
+}
+
+void Decode7bit(String &instr, String &outstr)
+{
+  byte reminder = 0;
+  int bitstate = 7;
+  for(int i=0; i<instr.length(); i++)
+  {
+    byte b = instr[i];
+    byte bb = b << (7 - bitstate);
+    char c = (bb + reminder) & 0x7F;
+    outstr += c;
+    reminder = b >> bitstate;
+    bitstate--;
+    if(bitstate == 0)
+    {
+      char c = reminder;
+      outstr += c;
+      reminder = 0;
+      bitstate = 7;
+    }
+  }
 }
 
 bool checkNumber(const char * string_number) //check phone number +CLCC:
