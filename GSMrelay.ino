@@ -6,7 +6,7 @@
 //add PROGMEM to all const strings +
 //add balance check
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
-#define DEBUGGING
+//#define DEBUGGING
 #ifdef DEBUGGING
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 #define PRINTLNF(s)       \
@@ -85,7 +85,7 @@ const char celsius[] PROGMEM = {0x18, 0x18, 0x00, 0x07, 0x05, 0x04, 0x05, 0x07};
 const char gsm[] PROGMEM = {0x01, 0x03, 0x1F, 0x11, 0x1F, 0x15, 0x1B, 0x1F};
 const char memory[] PROGMEM = {0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00};
 
-char string_buff[8]; //string buffer
+char string_buff[8]; //string buffer, useed for showing info on display
 
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_heater_set = 0;
@@ -93,6 +93,7 @@ int8_t temp[2] = {-99, -99}; // temp home, temp heater
 int8_t gsm_signal = 0;
 bool gsm_busy = false;
 uint16_t memory_free = 0;
+int16_t balance = NULL;
 CircularBuffer<uint8_t,5> audio_queue;     // audio sequence size, can play five files continuously
 bool relayFlag = false;
 bool backlightFlag = true;
@@ -311,8 +312,6 @@ void initGSM()
   }
   gsmSerial.begin(9600);
   
-  // char loading_string[6] = {0};
-  // uint8_t i = 0;
   while (true)
   {
     gsmSerial.println(F("AT+CPAS"));
@@ -396,17 +395,18 @@ void readStringGSM()
       adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
       PRINTLNF("sync clock OK");
     }
-    else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1
-    {
-      PRINTLN("GSMstring=", GSMstring);
-      strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64);
-//      strncpy(GSMstring,GSMstring,strstr(GSMstring, "\""));
-//      GSMstring[30] = '\0'; 
-      String asd = GSMstring;
-      PRINTLN("GSMstring=", asd);
-      String test;
-      Decode7bit(asd,test);
-       PRINTLN("DECODE2=", test);
+    else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1 
+    {                                                     //                                  +CUSD: 2, "OCTATOK 151.8 p." ,1
+      strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64); //cut
+      String in_str = GSMstring;
+      String out_str;
+      Decode7bit(in_str,out_str);
+      out_str.toCharArray(GSMstring,64);
+      if (sscanf(GSMstring,"%*[^0123456789]%d",&balance) == 1) { //find int
+      // if (sscanf(GSMstring,"%*[^0123456789]%d%",&balance) == 1) { //find int
+        PRINTLNF("check balance OK");  
+      }
+      // PRINTLN("DECODE=", test);
     }
     else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy) {
       if (checkNumber(GSMstring)) //check phone number +CLCC:
