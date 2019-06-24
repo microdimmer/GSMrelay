@@ -92,6 +92,9 @@ int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_home_set = 0;
 int8_t gsm_signal = 0;
 bool gsm_busy = false;
+unsigned long lastRequestTime = 0;
+const uint32_t requestTimeDelay = 3000; // menu idle time 3 min
+
 uint16_t memory_free = 0;
 int16_t balance = NULL;
 CircularBuffer<uint8_t,5> audio_queue;     // audio sequence size, can play five files continuously
@@ -324,32 +327,43 @@ void initGSM()
   gsmSerial.println(F("ATE0")); //echo off
   loadingAnimation(500);
   gsmSerial.println(F("AT+CSCS=\"GSM\"")); // "GSM","HEX","PCCP936","UCS2
+  loadingAnimation(500,2); //delay to initialize SIM card
   cleanSerialGSM();
   PRINTLNF("init GSM OK");
 }
 
 void requestTime() //request time from GSM
 {
-  // cleanSerialGSM();
-//  gsmSerial.println(F("AT+CCLK?"));
+  if ((millis() - lastRequestTime) < requestTimeDelay) {
+    timer.setTimeout(requestTimeDelay, requestTime);
+    return;
+  }
+  lastRequestTime = millis();
+  gsmSerial.println(F("AT+CCLK?"));
   PRINTLNF("request time from GSM");
+}
 
-  delay(100);
-  gsmSerial.println(F("at+cscs=?")); // test all
-  delay(100);
-   gsmSerial.println(F("AT+CUSD=1,\"#105#\",15")); // test all
-//   delay(5000);
+void requestBalance() //request balance from GSM
+{
+  if ((millis() - lastRequestTime) < requestTimeDelay) {
+    timer.setTimeout(requestTimeDelay, requestBalance);
+    return; 
+  }
+  lastRequestTime = millis();
+  gsmSerial.println(F("AT+CUSD=1,\"#105#\",15")); // test all
   PRINTLNF("request balance from GSM");
 }
 
 void requestSignalAndRAM() //request signal quality from GSM
 {
-  // cleanSerialGSM();
-//  gsmSerial.println(F("AT+CSQ"));
+  if ((millis() - lastRequestTime) < requestTimeDelay) { //delay so that commands are not executed at the same time
+    timer.setTimeout(requestTimeDelay, requestSignalAndRAM);
+    return;
+  }
+  lastRequestTime = millis();
+  gsmSerial.println(F("AT+CSQ"));
   memory_free = freeMemory();
-#ifdef DEBUGGING
   PRINTLN("freeMemory()=", memory_free)
-#endif
   // PRINTLNF("request signal quality from GSM");
 }
 
@@ -401,9 +415,8 @@ void readStringGSM()
       String in_str = GSMstring;
       String out_str;
       Decode7bit(in_str,out_str);
-      out_str.toCharArray(GSMstring,64);
+      out_str.toCharArray(GSMstring,64); //TODO del String
       if (sscanf(GSMstring,"%*[^0123456789]%d",&balance) == 1) { //find int
-      // if (sscanf(GSMstring,"%*[^0123456789]%d%",&balance) == 1) { //find int
         PRINTLNF("check balance OK");  
       }
       // PRINTLN("DECODE=", test);
@@ -467,7 +480,6 @@ bool checkNumber(const char * string_number) //check phone number +CLCC:
 {
   static const uint8_t list_size = sizeof(phone_table) / sizeof(phone_table[0]); //size of phones list
   static char phone_buff[12];
-  // strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
   for (int i = 0; i < list_size; i++)                            //4 phone numbers
   {
     strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
@@ -667,7 +679,7 @@ void drawMainSreen()
     lcd.setCursor(6, i);
     lcd.write(6+i); //6 home sign, 7 heater sign
     if (temp[i]==-99) {
-    lcd.print(strcpy_P(two_digits_buff, PSTR("--"))); //temp is invalid show --
+      lcd.print(strcpy_P(two_digits_buff, PSTR("--"))); //temp is invalid show --
     }
     else { 
       sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%+03d")), temp[i]);
@@ -701,11 +713,15 @@ void setup()
   initDS();  //init DS temp modules
   initMP3(); //mp3 serial port by default is not listening
   initGSM(); //init GSM module, the last intialized port is listening
-  delay(1000); //delay to initialize SIM card
+  // delay(1000); //delay to initialize SIM card
   requestTime(); //request time from GSM
-  requestTemp();                                 //request temp
-  delay(200);
-  requestSignalAndRAM();                         //request signal quality from GSM
+  requestTemp();  //request temp
+  loadingAnimation(500);
+  readStringGSM();
+  requestSignalAndRAM();  //request signal quality from GSM
+  loadingAnimation(500);
+  readStringGSM();
+  requestBalance();  //request balance from GSM
   
   menu_system.set_focusPosition(Position::LEFT); //init menu system
   main_line1.attach_function(1, go_switch_relay);
@@ -735,6 +751,8 @@ void setup()
   timer.setInterval(1000, requestTemp); //request temp once a second
   timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
+  // loadingAnimation(500,4); //delay to separate GSM command
+  timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
 
   readStringGSM();
