@@ -4,7 +4,11 @@
 //add preferences menu section, 
 //add voice temp information, add read BUSY pin +
 //add PROGMEM to all const strings +
-//add balance check
+//add balance check +
+//add balance check with minus +
+//add ruble sign +
+//TODO del String
+
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 //#define DEBUGGING
 #ifdef DEBUGGING
@@ -40,7 +44,7 @@ const char PHOME_NUM1[] PROGMEM = {"79227754426"};
 const char PHOME_NUM2[] PROGMEM = {"79044719617"};                                                   //pap
 const char PHOME_NUM3[] PROGMEM = {"79822219033"};                                                   //pap
 const char PHOME_NUM4[] PROGMEM = {"79226505965"};                                                   //tat
-const uint8_t REL_PIN = 11;                                                                             //pin for Relay
+const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
 const uint8_t GSM_PIN = 9;                                                                              //pin for GSM
 const uint8_t TEMP_SENSOR_PIN = 12;                                                                     //pin for DS18B20
 const uint8_t ENCODER_PIN1 = A1;                                                                        //pin for encoder +
@@ -84,6 +88,7 @@ const char home[] PROGMEM = {0xE4, 0xEE, 0xFF, 0xFF, 0xF1, 0xF5, 0xF1, 0xFF};
 const char celsius[] PROGMEM = {0x18, 0x18, 0x00, 0x07, 0x05, 0x04, 0x05, 0x07};
 const char gsm[] PROGMEM = {0x01, 0x03, 0x1F, 0x11, 0x1F, 0x15, 0x1B, 0x1F};
 const char memory[] PROGMEM = {0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00};
+const char ruble[] PROGMEM = { 0x0E,  0x09,  0x09,  0x1E,  0x08,  0x1C,  0x08, 0x08};
 
 char string_buff[8]; //string buffer, useed for showing info on display
 
@@ -96,35 +101,51 @@ unsigned long lastRequestTime = 0;
 const uint32_t requestTimeDelay = 3000; // menu idle time 3 min
 
 uint16_t memory_free = 0;
-int16_t balance = NULL;
+int16_t balance = -32768; //min uint
 CircularBuffer<uint8_t,5> audio_queue;     // audio sequence size, can play five files continuously
 bool relayFlag = false;
 bool backlightFlag = true;
 bool updateMainScreen = true;
 bool clearMainSreen = false;
+uint8_t current_menu = 0; //0 - homepage, 1 - main menu, 2 - info menu, 3 - temp menu
 
 const char MENU_ON_OFF[] PROGMEM = {"Вкл/Выкл"};
-const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
-const char MENU_TEMP[] PROGMEM = {"Уст.темп"};       //TODO
-const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
+//const char MENU_TEMP[] PROGMEM = {"Уст.темп"};       //TODO
+//const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
+//const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
 const char MENU_INFO[] PROGMEM = {"Инфо"};
 const char MENU_EXIT[] PROGMEM = {"Выход"};
+
+//const char MENU_TEMP_SET_HOME[] PROGMEM = {"Уст.т возд"};
+//const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"Уст.т рад"};
+//const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"Гист возд."};
+//const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"Гист рад."};
 
 const char MENU_INFO_HOME[] PROGMEM = {"Дом      %+03d°C"};
 const char MENU_INFO_HEATER[] PROGMEM = {"Радиатор %+03d°C"};
 const char MENU_INFO_GSM[] PROGMEM = {"GSM сигнал  %02d%%"};
 // const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
 
-uint8_t current_menu = 0; //0 - homepage, 1 - main menu, 2 - info menu
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
-LiquidLine main_line2(1, 1, MENU_SCHEDULE);
-LiquidLine main_line3(1, 0, MENU_TEMP);
+//LiquidLine main_line3(1, 1, MENU_TEMP);
+//LiquidLine main_line2(1, 0, MENU_SCHEDULE);
 LiquidLine main_line4(1, 1, MENU_INFO);
 LiquidLine main_line5(1, 0, MENU_EXIT);
 
-LiquidScreen main_screen1(main_line1, main_line2);
-LiquidScreen main_screen2(main_line3, main_line4);
+//LiquidScreen main_screen1(main_line1, main_line2);
+//LiquidScreen main_screen2(main_line3, main_line4);
+LiquidScreen main_screen1(main_line1, main_line4);
 LiquidScreen main_screen3(main_line5);
+
+//LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME);
+//LiquidLine temp_line3(1, 1, MENU_TEMP_SET_RADIATOR);
+//LiquidLine temp_line2(1, 0, MENU_TEMP_HOME_HYSTERESIS);
+//LiquidLine temp_line4(1, 1, MENU_TEMP_RADIATOR_HYSTERESIS);
+//LiquidLine temp_line5(1, 0, MENU_EXIT);
+//
+//LiquidScreen temp_screen1(temp_line1, temp_line2);
+//LiquidScreen temp_screen2(temp_line3, temp_line4);
+//LiquidScreen temp_screen3(temp_line5);
 
 LiquidLine info_line1(1, 0, MENU_INFO_HOME, temp[0]);
 LiquidLine info_line2(1, 1, MENU_INFO_HEATER, temp[1]);
@@ -135,10 +156,12 @@ LiquidScreen info_screen1(info_line1, info_line2);
 LiquidScreen info_screen2(info_line3, info_line4);
 // LiquidScreen info_screen3(info_line5);
 
-LiquidMenu main_menu(lcd, main_screen1, main_screen2, main_screen3, 1);
+LiquidMenu main_menu(lcd, main_screen1, main_screen3, 1);
+//LiquidMenu temp_menu(lcd, temp_screen1, temp_screen2, temp_screen3, 1);
 LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
 
 LiquidSystem menu_system(main_menu, info_menu, 1);
+//LiquidSystem menu_system(main_menu, info_menu, temp_menu, 1);
 
 void func() // Blank function, it is attached to the lines so that they become focusable.
 {
@@ -148,7 +171,7 @@ void func() // Blank function, it is attached to the lines so that they become f
 void go_switch_relay()
 {
   relayFlag = !relayFlag;
-  digitalWrite(REL_PIN, relayFlag);
+  digitalWrite(RELAY_PIN, relayFlag);
   PRINTLNF("relay switch!");
   menu_system.switch_focus();
   menu_system.switch_focus();
@@ -165,6 +188,15 @@ void go_info_menu()
   menu_system.switch_focus();
   current_menu = 2;
 }
+
+//void go_temp_menu()
+//{
+//  PRINTLNF("changing to temp menu!");
+//  menu_system.change_menu(temp_menu);
+//  menu_system.change_screen(1);
+//  menu_system.switch_focus();
+//  current_menu = 3;
+//}
 
 void go_main_menu()
 {
@@ -411,12 +443,12 @@ void readStringGSM()
     }
     else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1 
     {                                                     //                                  +CUSD: 2, "OCTATOK 151.8 p." ,1
-      strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64); //cut
+      strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64); //cut string will be like OCTATOK 151.8 p." ,1
       String in_str = GSMstring;
       String out_str;
       Decode7bit(in_str,out_str);
       out_str.toCharArray(GSMstring,64); //TODO del String
-      if (sscanf(GSMstring,"%*[^0123456789]%d",&balance) == 1) { //find int
+      if (sscanf(GSMstring,"%*[^-0123456789]%d",&balance) == 1) { //find int
         PRINTLNF("check balance OK");  
       }
       // PRINTLN("DECODE=", test);
@@ -428,7 +460,7 @@ void readStringGSM()
         timer.setTimeout(15000L, hangUpGSM);
   
         relayFlag = !relayFlag;
-        digitalWrite(REL_PIN, relayFlag);
+        digitalWrite(RELAY_PIN, relayFlag);
         PRINTLNF("relay switch!");
   
         gsmSerial.println(F("ATA"));                       //answer call
@@ -648,23 +680,32 @@ void drawMainSreen()
     lcd.clear();
     clearMainSreen = false;
   }
-  lcd.createChar(3, memory);
+  
+  //lcd.createChar(3, memory);
   lcd.createChar(4, gsm);
   lcd.createChar(5, celsius);
   lcd.createChar(6, home);
   lcd.createChar(7, heater);
+  lcd.createChar(3, ruble);
   
+  //time show
   lcd.setCursor(0, 0);
   sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), hour());
   lcd.print(two_digits_buff);
   ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
   sprintf(two_digits_buff, string_buff, minute());
   lcd.print(two_digits_buff);
-
+  
+  //balance show
   lcd.setCursor(0, 1);
-  lcd.write(3); //RAM sign
-  sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), memory_free);
-  lcd.print(two_digits_buff);
+  if (balance==-32768) {
+    lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
+  }
+  else {
+    sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), balance);
+    lcd.print(two_digits_buff);
+  }
+  lcd.write(3); // russian currency sign
 
   lcd.setCursor(12, 1);
   lcd.write(4); //GSM sign
@@ -694,8 +735,13 @@ void drawMainSreen()
 
 void setup()
 {
-  pinMode(REL_PIN, OUTPUT);
-  digitalWrite(REL_PIN, relayFlag); //relay OFF
+  #ifdef DEBUGGING
+  Serial.begin(9600);
+  #endif
+  PRINTLNF("Debug on");
+  
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, relayFlag); //relay OFF
 
   lcd.init(); //init display
   lcd.setBacklight(backlightFlag);
@@ -706,9 +752,7 @@ void setup()
   lcd.print(F("0."));
   lcd.print(PROG_VERSION);
   lcd.setCursor(3, 1);
-#ifdef DEBUGGING
-  Serial.begin(9600);
-#endif
+
 
   initDS();  //init DS temp modules
   initMP3(); //mp3 serial port by default is not listening
@@ -725,11 +769,17 @@ void setup()
   
   menu_system.set_focusPosition(Position::LEFT); //init menu system
   main_line1.attach_function(1, go_switch_relay);
-  main_line2.attach_function(1, func);
-  main_line3.attach_function(1, func);
+  //main_line2.attach_function(1, func);
+  //main_line3.attach_function(1, func);
   main_line4.attach_function(1, go_info_menu);
   main_line5.attach_function(1, go_main_screen);
 
+//  temp_line1.attach_function(1, func);
+//  temp_line2.attach_function(1, func);
+//  temp_line3.attach_function(1, func);
+//  temp_line4.attach_function(1, func);
+//  temp_line5.attach_function(1, go_main_screen);
+  
   info_line1.attach_function(1, func);
   info_line2.attach_function(1, func);
   info_line3.attach_function(1, func);
@@ -737,10 +787,16 @@ void setup()
   // info_line5.attach_function(1, go_main_menu);
 
   main_line1.set_asProgmem(1); //set PROGMEM menu lines
-  main_line2.set_asProgmem(1);
-  main_line3.set_asProgmem(1);
+  //main_line2.set_asProgmem(1);
+  //main_line3.set_asProgmem(1);
   main_line4.set_asProgmem(1);
   main_line5.set_asProgmem(1);
+
+//  temp_line1.set_asProgmem(1);
+//  temp_line2.set_asProgmem(1);
+//  temp_line3.set_asProgmem(1);
+//  temp_line4.set_asProgmem(1);
+//  temp_line5.set_asProgmem(1);
 
   info_line1.set_asProgmem(1);
   info_line2.set_asProgmem(1);
