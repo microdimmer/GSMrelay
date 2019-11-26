@@ -7,10 +7,36 @@
 //add balance check +
 //add balance check with minus +
 //add ruble sign +
-//TODO del String
+//TODO del String +
+
+//  char asd[64] = "b8.!5H}.Ab8.Zb8.b8.b8.b8..";
+//  char asd2[64];
+//  cout << asd;
+//
+//  std::uint8_t reminder = 0;
+//  int bitstate = 7;
+//
+//  cout << "\n";
+//  for (int i = 0; asd[i] != '\0'; i++)
+//    {
+//      std::uint8_t b = asd[i];
+//      std::uint8_t bb = b << (7 - bitstate);
+//      char c = (bb + reminder) & 0x7F;
+//      asd2[i] = c;
+//      reminder = b >> bitstate;
+//      bitstate--;
+//      if (bitstate == 0)
+//      {
+//        char c = reminder;
+//        asd2[i] = c;
+//        reminder = 0;
+//        bitstate = 7;
+//      }
+//
+//    }
 
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
-//#define DEBUGGING
+#define DEBUGGING
 #ifdef DEBUGGING
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 #define PRINTLNF(s)       \
@@ -124,7 +150,7 @@ const char MENU_EXIT[] PROGMEM = {"Выход"};
 const char MENU_INFO_HOME[] PROGMEM = {"Дом      %+03d°C"};
 const char MENU_INFO_HEATER[] PROGMEM = {"Радиатор %+03d°C"};
 const char MENU_INFO_GSM[] PROGMEM = {"GSM сигнал  %02d%%"};
-// const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
+//const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
 
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
 //LiquidLine main_line3(1, 1, MENU_TEMP);
@@ -150,7 +176,7 @@ LiquidScreen main_screen3(main_line5);
 LiquidLine info_line1(1, 0, MENU_INFO_HOME, temp[0]);
 LiquidLine info_line2(1, 1, MENU_INFO_HEATER, temp[1]);
 LiquidLine info_line3(1, 0, MENU_INFO_GSM, gsm_signal);
-// LiquidLine info_line4(1, 1, MENU_INFO_RAM, memory_free);
+//LiquidLine info_line4(1, 1, MENU_INFO_RAM, memory_free);
 LiquidLine info_line4(1, 1, MENU_EXIT);
 LiquidScreen info_screen1(info_line1, info_line2);
 LiquidScreen info_screen2(info_line3, info_line4);
@@ -420,7 +446,7 @@ void readStringGSM()
     {
       strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CSQ: "))+6,2);
       GSMstring[2] ='\0';// must return 22
-      gsm_signal = atoi(GSMstring) * 100 / 31; // convert to percent,dont need to number check, if needed, use sscanf or strtol
+      gsm_signal = atoi(GSMstring) * 100 / 31; // convert to percent, didnt need to check number, if needed, use sscanf or strtol
       PRINTLN("signal quality=", gsm_signal);
     }
     else if (strstr_P(GSMstring, PSTR("+CCLK: ")) != NULL) //return time, command like +CCLK: "18/11/29,07:34:36+05"
@@ -444,14 +470,10 @@ void readStringGSM()
     else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1 
     {                                                     //                                  +CUSD: 2, "OCTATOK 151.8 p." ,1
       strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64); //cut string will be like OCTATOK 151.8 p." ,1
-      String in_str = GSMstring;
-      String out_str;
-      Decode7bit(in_str,out_str);
-      out_str.toCharArray(GSMstring,64); //TODO del String
+      decode7Bit(GSMstring);
       if (sscanf(GSMstring,"%*[^-0123456789]%d",&balance) == 1) { //find int
         PRINTLNF("check balance OK");  
       }
-      // PRINTLN("DECODE=", test);
     }
     else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy) {
       if (checkNumber(GSMstring)) //check phone number +CLCC:
@@ -486,26 +508,25 @@ void readStringGSM()
   }
 }
 
-void Decode7bit(String &instr, String &outstr)
+void decode7Bit(char *in_str)
 {
+  char out_str[64];
   byte reminder = 0;
   int bitstate = 7;
-  for(int i=0; i<instr.length(); i++)
-  {
-    byte b = instr[i];
-    byte bb = b << (7 - bitstate);
-    char c = (bb + reminder) & 0x7F;
-    outstr += c;
-    reminder = b >> bitstate;
-    bitstate--;
-    if(bitstate == 0)
-    {
-      char c = reminder;
-      outstr += c;
-      reminder = 0;
-      bitstate = 7;
+  for (byte i = 0; in_str[i] != '\0' || i <64; i++) {
+      byte b = in_str[i];
+      byte bb = b << (7 - bitstate);
+      char c = ((b << (7 - bitstate)) + reminder) & 0x7F;
+      out_str[i] = c;
+      reminder = b >> bitstate;
+      bitstate--;
+      if (bitstate == 0) {
+        out_str[i] = reminder;
+        reminder = 0;
+        bitstate = 7;
+      }
     }
-  }
+  strcpy(in_str,out_str);
 }
 
 bool checkNumber(const char * string_number) //check phone number +CLCC:
@@ -603,7 +624,7 @@ void playTemp(uint8_t temp_sens_num) { // TODO
   addAudio(31);//play 'degree'
 }
 
-void initDS()
+void initDS() //init temp sensors
 {
   uint8_t i = 0;
   byte resolution;
@@ -627,7 +648,7 @@ void initDS()
     {
       resolution = ds.read(); // we need fifth byte, (resolution) 7F=12bits 5F=11bits 3F=10bits 1F=9bits
     }
-    PRINTLNHEX("DS18B20 resolution=", resolution);
+    PRINTLNHEX("DS18B20 resolution (0x7f max)=", resolution);
     if (resolution != 0x7f)
     {
       ds.reset();
@@ -697,7 +718,7 @@ void drawMainSreen()
   lcd.print(two_digits_buff);
   
   //balance show
-  lcd.setCursor(0, 1);
+  lcd.setCursor(1, 1);
   if (balance==-32768) {
     lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
   }
