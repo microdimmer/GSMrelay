@@ -1,41 +1,10 @@
-//TODO remove all strings objects, +
 //use DFPlayerMini_Fast, 
 //add shedule and temp automation, 
 //add preferences menu section, 
 //add voice temp information, add read BUSY pin +
-//add PROGMEM to all const strings +
-//add balance check +
-//add balance check with minus +
-//add ruble sign +
-//TODO del String +
-
-//  char asd[64] = "b8.!5H}.Ab8.Zb8.b8.b8.b8..";
-//  char asd2[64];
-//  cout << asd;
-//
-//  std::uint8_t reminder = 0;
-//  int bitstate = 7;
-//
-//  cout << "\n";
-//  for (int i = 0; asd[i] != '\0'; i++)
-//    {
-//      std::uint8_t b = asd[i];
-//      std::uint8_t bb = b << (7 - bitstate);
-//      char c = (bb + reminder) & 0x7F;
-//      asd2[i] = c;
-//      reminder = b >> bitstate;
-//      bitstate--;
-//      if (bitstate == 0)
-//      {
-//        char c = reminder;
-//        asd2[i] = c;
-//        reminder = 0;
-//        bitstate = 7;
-//      }
-//
-//    }
 
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
+
 #define DEBUGGING
 #ifdef DEBUGGING
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
@@ -86,12 +55,13 @@ const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, P
 #include <CircularBuffer.h> // https://github.com/rlogiacco/CircularBuffer //TODO del
 #include <OneWire.h>             //for DS18B20
 #include <DFRobotDFPlayerMini.h> //DF MP3 Player mini
-// #include <DFPlayerMini_Fast.h> //DFPlayer MP3 mini https://github.com/scottpav/DFPlayerMini_Fast
+//#include <DFPlayerMini_Fast.h> //DFPlayer MP3 mini https://github.com/scottpav/DFPlayerMini_Fast
 #include <ClickEncoder.h>   //encoder with button https://github.com/0xPIT/encoder
-#include <TimeLib.h>        //timekeeping
+#include <TimeLib.h>        //timekeeping https://github.com/PaulStoffregen/Time
 #include <SoftwareSerial.h> //for GSM modem A6
 #include <SimpleTimer.h>    // Handy timers
-#include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/ssilver2007/LCD_1602_RUS and https://github.com/johnrickman/LiquidCrystal_I2C
+#include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/johnrickman/LiquidCrystal_I2C
+//#include <EEPROM.h>
 
 OneWire ds(TEMP_SENSOR_PIN);
 byte DSaddr[2][8]; // first and second DS18B20 addresses, home 28FFE44750170473 heater 28FF2FDAC11704DE
@@ -102,12 +72,12 @@ int16_t last_val, enc_val;
 
 SoftwareSerial gsmSerial(GSM_SERIAL_RX, GSM_SERIAL_TX);
 SoftwareSerial mp3Serial(MP3_SERIAL_RX, MP3_SERIAL_TX);
-// DFPlayerMini_Fast mp3Player;
+//DFPlayerMini_Fast mp3Player;
 DFRobotDFPlayerMini mp3Player;
 
 SimpleTimer timer;
 
-LCD_1602_RUS lcd(0x3F, 16, 2);
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 const char heater[] PROGMEM = {0xF2, 0xE9, 0xF2, 0xE9, 0xE0, 0xF5, 0xFF, 0xFF};
 const char home[] PROGMEM = {0xE4, 0xEE, 0xFF, 0xFF, 0xF1, 0xF5, 0xF1, 0xFF};
@@ -116,7 +86,7 @@ const char gsm[] PROGMEM = {0x01, 0x03, 0x1F, 0x11, 0x1F, 0x15, 0x1B, 0x1F};
 const char memory[] PROGMEM = {0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00};
 const char ruble[] PROGMEM = { 0x0E,  0x09,  0x09,  0x1E,  0x08,  0x1C,  0x08, 0x08};
 
-char string_buff[8]; //string buffer, useed for showing info on display
+char string_buff[8]; //string buffer, used for showing info on display
 
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_heater_set = 0;
@@ -128,28 +98,28 @@ const uint32_t requestTimeDelay = 3000; // menu idle time 3 min
 
 uint16_t memory_free = 0;
 int16_t balance = -32768; //min uint
-CircularBuffer<uint8_t,5> audio_queue;     // audio sequence size, can play five files continuously
+CircularBuffer<uint8_t,6> audio_queue;     // audio sequence size, can play five files continuously
 bool relayFlag = false;
 bool backlightFlag = true;
 bool updateMainScreen = true;
 bool clearMainSreen = false;
 uint8_t current_menu = 0; //0 - homepage, 1 - main menu, 2 - info menu, 3 - temp menu
 
-const char MENU_ON_OFF[] PROGMEM = {"Вкл/Выкл"};
+const char MENU_ON_OFF[] PROGMEM = {"B\272\273/B\303k\273"}; //Вкл/Выкл
 //const char MENU_TEMP[] PROGMEM = {"Уст.темп"};       //TODO
 //const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
 //const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
-const char MENU_INFO[] PROGMEM = {"Инфо"};
-const char MENU_EXIT[] PROGMEM = {"Выход"};
+const char MENU_INFO[] PROGMEM = {"\245\275\344o"}; //Инфо
+const char MENU_EXIT[] PROGMEM = {"B\303xo\343"}; //Выход
 
 //const char MENU_TEMP_SET_HOME[] PROGMEM = {"Уст.т возд"};
 //const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"Уст.т рад"};
 //const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"Гист возд."};
 //const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"Гист рад."};
 
-const char MENU_INFO_HOME[] PROGMEM = {"Дом      %+03d°C"};
-const char MENU_INFO_HEATER[] PROGMEM = {"Радиатор %+03d°C"};
-const char MENU_INFO_GSM[] PROGMEM = {"GSM сигнал  %02d%%"};
+const char MENU_INFO_HOME[] PROGMEM = {"\340o\274      %+03d°C"}; //Дом
+const char MENU_INFO_HEATER[] PROGMEM = {"Pa\343\270a\277op %+03d°C"}; //Радиатор
+const char MENU_INFO_GSM[] PROGMEM = {"GSM c\270\264\275a\273  %02d%%"}; //GSM сигнал
 //const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
 
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
@@ -359,7 +329,7 @@ void initGSM()
   pinMode(GSM_PIN, OUTPUT);
   digitalWrite(GSM_PIN, LOW);
   lcd.setCursor(3, 1); // display loading message
-  lcd.print(F("загрузка     ")); // clear display 
+  lcd.print(F("\267a\264py\267\272a     ")); // clear display //загрузка
   lcd.setCursor(11, 1);
   loadingAnimation(500,4); //display loading animation
   // delay(2000);
@@ -515,7 +485,7 @@ void decode7Bit(char *in_str)
   int bitstate = 7;
   for (byte i = 0; in_str[i] != '\0' || i <64; i++) {
       byte b = in_str[i];
-      byte bb = b << (7 - bitstate);
+ //     byte bb = b << (7 - bitstate);
       char c = ((b << (7 - bitstate)) + reminder) & 0x7F;
       out_str[i] = c;
       reminder = b >> bitstate;
@@ -569,6 +539,7 @@ void initMP3()
   // }
   // delay(5000);
   mp3Player.pause();
+  //mp3Player.play(32);
 }
 
 bool isMP3Busy() {
@@ -578,15 +549,16 @@ bool isMP3Busy() {
 bool addAudio(uint8_t num_track) {
   if (!audio_queue.isFull()) 
     return audio_queue.push(num_track);
-  else
-    return false;
+  else { PRINTLNF("isFull"); 
+    return false;}
 }
 
 void playAudio() {
-  if ((audio_queue.isEmpty() || isMP3Busy())) {
+  if (isMP3Busy() || audio_queue.isEmpty())
     return;
-  }
-  else 
+
+//    unsigned char temp = audio_queue.shift();
+//    PRINTLN("temp=", temp);
     mp3Player.play(audio_queue.shift());
 }
 
@@ -626,8 +598,8 @@ void playTemp(uint8_t temp_sens_num) { // TODO
 
 void initDS() //init temp sensors
 {
-  uint8_t i = 0;
-  byte resolution;
+  uint8_t i,resolution = 0;
+  //byte resolution;
   while (ds.search(DSaddr[i]))
   {
     if (i > 1)
@@ -735,7 +707,7 @@ void drawMainSreen()
   lcd.write('%');
 
   lcd.setCursor(12, 0);
-  relayFlag ? lcd.print(F("ВКЛ")) : lcd.print(F("ВЫКЛ"));
+  relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
 
   for (uint8_t i = 0; i<=1; i++) {
     lcd.setCursor(6, i);
@@ -768,7 +740,7 @@ void setup()
   lcd.setBacklight(backlightFlag);
   lcd.clear();
   lcd.setCursor(1, 0);
-  lcd.print(F("GSM-реле v."));
+  lcd.print(F("GSM-pe\273e v.")); //GSM-реле v.
   lcd.setCursor(12, 0);
   lcd.print(F("0."));
   lcd.print(PROG_VERSION);
@@ -831,6 +803,7 @@ void setup()
   // loadingAnimation(500,4); //delay to separate GSM command
   timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
+  timer.setInterval(100L, playAudio);
 
   readStringGSM();
   lcd.clear();
@@ -845,5 +818,5 @@ void loop()
   readEncoder();
   drawMainSreen();
   readStringGSM();
-  playAudio();
+  //playAudio();
 }
