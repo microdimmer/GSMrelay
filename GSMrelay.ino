@@ -2,10 +2,11 @@
 //add shedule and temp automation, 
 //add preferences menu section, 
 //add voice temp information, add read BUSY pin +
+//!!!!edit LiquidMenu_config.h first!!!!
 
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 
-#define DEBUGGING
+//#define DEBUGGING
 #ifdef DEBUGGING
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree
 #define PRINTLNF(s)       \
@@ -61,7 +62,14 @@ const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, P
 #include <SoftwareSerial.h> //for GSM modem A6
 #include <SimpleTimer.h>    // Handy timers
 #include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/johnrickman/LiquidCrystal_I2C
-//#include <EEPROM.h>
+#include <EEPROM.h>
+
+struct Log {
+  int8_t home_temp; // temp +- 63, 1 byte, and sentinel, see this https://sites.google.com/site/dannychouinard/Home/atmel-avr-stuff/eeprom-longevity
+  int8_t heater_temp; // heater +- 128, 1 byte
+  int16_t balance; // balance +-32967, 2 bytes
+  time_t unix_time; // current POSIX time, 4 bytes
+}; //total 8 bytes (64 bits)
 
 OneWire ds(TEMP_SENSOR_PIN);
 byte DSaddr[2][8]; // first and second DS18B20 addresses, home 28FFE44750170473 heater 28FF2FDAC11704DE
@@ -305,7 +313,7 @@ void loadingAnimation(uint32_t a_delay, uint8_t count = 1) //loading animation T
 {
   for (uint8_t i = 0; i < count; i++)
   {
-    static char string_buff[6] = {0};
+    static char string_buff[6] = {0}; //TODO del static
     lcd.setCursor(11, 1);
     lcd.print(string_buff);
     delay(a_delay);
@@ -356,6 +364,8 @@ void initGSM()
   loadingAnimation(500);
   gsmSerial.println(F("AT+CSCS=\"GSM\"")); // "GSM","HEX","PCCP936","UCS2
   loadingAnimation(500,2); //delay to initialize SIM card
+  gsmSerial.println(F("AT+CMGF=1")); // Configuring TEXT mode
+  loadingAnimation(500);
   cleanSerialGSM();
   PRINTLNF("init GSM OK");
 }
@@ -395,31 +405,31 @@ void requestSignalAndRAM() //request signal quality from GSM
   // PRINTLNF("request signal quality from GSM");
 }
 
-void readStringGSM()
+void readStringGSM() //read data from GSM module
 {
   static char GSMstring[64];
   memset(GSMstring,0,sizeof(GSMstring));
 //   while (gsmSerial.available())
 //     Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
   if (gsmSerial.available()) {
-    if (gsmSerial.readBytesUntil('\n',GSMstring,sizeof(GSMstring)) < 4 ) { // \n  line feed - new line 0x0a
+    if (gsmSerial.readBytesUntil('\n',GSMstring,sizeof(GSMstring)) < 4 ) { // \n  line feed - new line 0x0a 
 //      PRINTLN("GSMstring=", GSMstring);
       return;
     }
-    else if (strstr_P(GSMstring, PSTR("RING")) != NULL) //return ring signal
+    else if (strstr_P(GSMstring, PSTR("RING")) != NULL) //return ring signal (if somebody ringing)
     {
       gsmSerial.println(F("AT+CLCC")); //returns list of current call numbers
       backlightON();
       PRINTLNF("ringin!");
     }
-    else if (strstr_P(GSMstring, PSTR("+CSQ: ")) != NULL) //return signal quality, command like +CSQ: 22,99
+    else if (strstr_P(GSMstring, PSTR("+CSQ: ")) != NULL) //return signal quality, command like +CSQ: 22,99 (if received signal quality data)
     {
       strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CSQ: "))+6,2);
       GSMstring[2] ='\0';// must return 22
       gsm_signal = atoi(GSMstring) * 100 / 31; // convert to percent, didnt need to check number, if needed, use sscanf or strtol
       PRINTLN("signal quality=", gsm_signal);
     }
-    else if (strstr_P(GSMstring, PSTR("+CCLK: ")) != NULL) //return time, command like +CCLK: "18/11/29,07:34:36+05"
+    else if (strstr_P(GSMstring, PSTR("+CCLK: ")) != NULL) //return time, command like +CCLK: "18/11/29,07:34:36+05" (if received time data)
     {
       strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CCLK: "))+8,20); 
       GSMstring[20] ='\0'; //must return 18/11/29,07:34:36+05\0
@@ -437,7 +447,7 @@ void readStringGSM()
       adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
       PRINTLNF("sync clock OK");
     }
-    else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1 
+    else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1  (if received balance data)
     {                                                     //                                  +CUSD: 2, "OCTATOK 151.8 p." ,1
       strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64); //cut string will be like OCTATOK 151.8 p." ,1
       decode7Bit(GSMstring);
@@ -445,7 +455,7 @@ void readStringGSM()
         PRINTLNF("check balance OK");  
       }
     }
-    else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy) {
+    else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !gsm_busy) { //if received phone number calling data
       if (checkNumber(GSMstring)) //check phone number +CLCC:
       {
         gsm_busy = true;
@@ -485,7 +495,6 @@ void decode7Bit(char *in_str)
   int bitstate = 7;
   for (byte i = 0; in_str[i] != '\0' || i <64; i++) {
       byte b = in_str[i];
- //     byte bb = b << (7 - bitstate);
       char c = ((b << (7 - bitstate)) + reminder) & 0x7F;
       out_str[i] = c;
       reminder = b >> bitstate;
@@ -531,15 +540,11 @@ void hangUpGSM()
 void initMP3()
 {
   mp3Serial.begin(9600);
-  mp3Player.begin(mp3Serial);
-
-  // if (mp3Player.begin(mp3Serial))
-  // { //Use softwareSerial to communicate with mp3.
-  //   PRINTLNF("DFPlayer Mini init OK");
-  // }
-  // delay(5000);
+  if (mp3Player.begin(mp3Serial))
+  { //Use softwareSerial to communicate with mp3.
+    PRINTLNF("DFPlayer Mini init OK");
+  }
   mp3Player.pause();
-  //mp3Player.play(32);
 }
 
 bool isMP3Busy() {
@@ -557,8 +562,6 @@ void playAudio() {
   if (isMP3Busy() || audio_queue.isEmpty())
     return;
 
-//    unsigned char temp = audio_queue.shift();
-//    PRINTLN("temp=", temp);
     mp3Player.play(audio_queue.shift());
 }
 
@@ -726,12 +729,90 @@ void drawMainSreen()
   updateMainScreen = false;
 }
 
+int16_t addr_to_read() { //EEPROM address to read from TODO test
+  int16_t read_byte_pos = 0;
+  while(read_byte_pos < EEPROM.length()-sizeof(Log)) { // determine address to read data
+    if (bitRead(EEPROM.read(read_byte_pos),7) !=  bitRead(EEPROM.read(read_byte_pos+sizeof(Log)),7)) //compare first bit in structs (sentinels), if not equal - we find address!
+      break;
+    read_byte_pos+=sizeof(Log); //go to next record
+  }
+  return read_byte_pos;
+}
+
+void sendSMSBalance() {
+  //mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
+  //gsmSerial.println(F("AT+CHUP")); //hang up all calls// TODO
+
+  int16_t read_byte_pos = addr_to_read(); //find EEPROM address to read from
+  Log log_data;
+  // byte sentinel = 0; //sentinel bit
+  // if (read_byte_pos >= EEPROM.length()-sizeof(Log)) { //reach end of EEPROM go to begining (to 0), to the start of EEPROM
+  //   read_byte_pos = 0;
+  //   EEPROM.get(read_byte_pos, log_data); //read EEPROM data from start byte (0)
+  //   sentinel = bitRead(log_data.home_temp,7); //read sentinel bit
+  //   sentinel ^= 1; // invert sentintel bit
+  // }
+  // else {
+  EEPROM.get(read_byte_pos, log_data); //read EEPROM data
+  byte sentinel = bitRead(log_data.home_temp,7); //read sentinel bit
+  // }
+
+  time_t previous_datetime = log_data.unix_time;
+  if (log_data.unix_time == 0xFFFFFFFF) {//check data, if empty date = empty data, nothing to read
+    previous_datetime = 0; //no data - send SMS and write to EEPROM
+    sentinel ^= 1 ; // invert sentintel bit
+  }
+
+  if (elapsedDays(now()) - elapsedDays(previous_datetime) >= 80) { //if more than 80 days have passed from last sending, send new SMS
+    //write datetitme (data struct) to EEPROM
+    int16_t write_byte_pos = read_byte_pos + sizeof(Log);
+    if (write_byte_pos >= EEPROM.length()) { //reaching end of EEPROM go to begining (to 0), to the start of EEPROM
+      write_byte_pos = 0;
+      if (log_data.unix_time != 0xFFFFFFFF)
+        sentinel ^= 1 ; //invert sentintel bit
+    }
+    log_data.home_temp = temp[0]; //home temp must be <= 0b00111111, i.e. abs(home_temp) <= 63
+    bitWrite(log_data.home_temp,7,sentinel); //set last bit, its sentinel (0b10000000)
+    log_data.heater_temp = temp[1];
+    log_data.balance = balance;
+    log_data.unix_time = now();   
+    EEPROM.put(write_byte_pos, log_data );
+    PRINTLNF("Writing to EEPROM done!");
+    
+    //send SMS
+    gsmSerial.print(F("AT+CMGS=+")); //sms to phone number
+    char phone_date_buff[16]; //number 7XXXXXXXXXX
+    strcpy_P(phone_date_buff, (char *)pgm_read_word(&(phone_table[0]))); // first phone number from table
+    gsmSerial.println(phone_date_buff);
+    gsmSerial.print(F("Balance: "));
+    gsmSerial.print(balance);
+    gsmSerial.print(F("; Home temp: "));
+    gsmSerial.print(temp[0]);
+    gsmSerial.print(F("; Heat temp: "));
+    gsmSerial.print(temp[1]);
+    gsmSerial.print(F("; Datetime: "));//print time like 17.12.2020 16:47
+    // sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%+03d")), temp[i]);
+    gsmSerial.print(day());
+    gsmSerial.print('.');
+    gsmSerial.print(month());
+    gsmSerial.print('.');
+    gsmSerial.print(year());
+    gsmSerial.print(' ');
+    gsmSerial.print(hour());
+    gsmSerial.print(':');
+    gsmSerial.print(minute());
+    gsmSerial.write(26); //Ctr+Z - end of SMS
+    PRINTLNF("Sending SMS done!");
+  }
+
+}
+
 void setup()
 {
   #ifdef DEBUGGING
   Serial.begin(9600);
-  #endif
   PRINTLNF("Debug on");
+  #endif
   
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, relayFlag); //relay OFF
@@ -754,12 +835,14 @@ void setup()
   requestTime(); //request time from GSM
   requestTemp();  //request temp
   loadingAnimation(500);
-  readStringGSM();
+  readStringGSM(); //read data response
   requestSignalAndRAM();  //request signal quality from GSM
   loadingAnimation(500);
   readStringGSM();
   requestBalance();  //request balance from GSM
-  
+  loadingAnimation(500,20);//10 secs
+  sendSMSBalance();
+
   menu_system.set_focusPosition(Position::LEFT); //init menu system
   main_line1.attach_function(1, go_switch_relay);
   //main_line2.attach_function(1, func);
@@ -800,10 +883,10 @@ void setup()
   timer.setInterval(1000, requestTemp); //request temp once a second
   timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
-  // loadingAnimation(500,4); //delay to separate GSM command
+  timer.setInterval(SECS_PER_DAY * 80L, sendSMSBalance); //send sms with balance every 80 days
   timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
-  timer.setInterval(100L, playAudio);
+  timer.setInterval(100L, playAudio); //100 ms delay
 
   readStringGSM();
   lcd.clear();
