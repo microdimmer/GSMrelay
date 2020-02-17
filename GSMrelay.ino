@@ -375,19 +375,15 @@ void readStringGSM() //read data from GSM module
       if (checkNumber(GSMstring)) //check phone number +CLCC:
       {
         GSMonAirFlag = true;
-        timer.setTimeout(15000L, hangUpGSM);
+        timer.setTimeout(30000L, hangUpGSM);
   
         relayFlag = !relayFlag;
         digitalWrite(RELAY_PIN, relayFlag);
         PRINTLNF("relay switch!");
-  
+        cleanSerialGSM();
         gsmSerial.println(F("ATA"));                       //answer call
         PRINTLNF("answer call");
-        mp3Player.volume(30);                              //set volume value. From 0 to 30
-        relayFlag ? addAudio(32) : addAudio(33); //play switch on/off
-        playTemp(0); //play temp home
-        playTemp(1); //play temp heater
-        // gsmSerial.println(F("AT+CHUP"));
+        timer.setTimeout(500, playGSM);
         if (currentMenu == 0)
         {
           lcd.clear();
@@ -396,7 +392,7 @@ void readStringGSM() //read data from GSM module
         else
           menu_system.update();
   
-        cleanSerialGSM();
+        //cleanSerialGSM();
       }
     }
     else
@@ -448,9 +444,18 @@ void cleanSerialGSM()
 
 void hangUpGSM()
 {
+  cleanSerialGSM();
   gsmSerial.println(F("AT+CHUP")); //hang up all calls
   GSMonAirFlag = false;
-  //cleanSerialGSM(); // ??
+}
+
+void playGSM()
+{
+  mp3Player.volume(30); //set volume value. From 0 to 30
+  relayFlag ? addAudio(34) : addAudio(35); //play switch on/off
+  playTemp(0); //play temp home
+  playTemp(1); //play temp heater
+  playBalance();
 }
 
 void backlightOFF()
@@ -562,21 +567,7 @@ void sendSMSBalance() {
   GSMwaitReqFlag = true;
   uint16_t read_byte_pos = addrToRead(); //find EEPROM address to read from
   Log log_data;
-  // byte sentinel = 0; //sentinel bit
-  // if (read_byte_pos >= EEPROM.length()-sizeof(Log)) { //reach end of EEPROM go to begining (to 0), to the start of EEPROM
-  //   read_byte_pos = 0;
-  //   EEPROM.get(read_byte_pos, log_data); //read EEPROM data from start byte (0)
-  //   sentinel = bitRead(log_data.home_temp,7); //read sentinel bit
-  //   sentinel ^= 1; // invert sentintel bit
-  // }
-  // else {
   EEPROM.get(read_byte_pos, log_data); //read EEPROM data
-  // }
-//  time_t previous_datetime = log_data.unix_time;
-//  if (previous_datetime == 0xFFFFFFFF) {//check data, if empty date = empty data, nothing to read
-//    previous_datetime = 0; //no data - send SMS and write to EEPROM
-//    sentinel ^= 1 ; // invert sentintel bit
-//  }
   PRINTLN("read_byte_pos ",read_byte_pos);
   uint16_t elapsed_days = 0;
   if (now() > log_data.unix_time) {
@@ -591,9 +582,6 @@ void sendSMSBalance() {
     if (write_byte_pos >= EEPROM.length()) { //reaching end of EEPROM go to begining (to 0), to the start of EEPROM
       write_byte_pos = 0;
       sentinel ^= 1 ; //invert sentintel bit
-//      if (previous_datetime != 0xFFFFFFFF) {
-//        PRINTLN("log_data.unix_time ",log_data.unix_time);
-//      }
     }
     log_data.home_temp = temp[0]; //home temp must be <= 0b00111111, i.e. abs(home_temp) <= 63
     bitWrite(log_data.home_temp,7,sentinel); //set last bit, its sentinel (0b10000000)
@@ -653,7 +641,6 @@ void sendSMSBalance() {
     timer.setTimeout(SECS_PER_MIN * 5000L, requestBalance);//request balance 5 min later
   }
     GSMwaitReqFlag = false;
-    
 }
 
 void setup()
@@ -682,13 +669,10 @@ void setup()
 
   requestSignalAndRAM();  //request signal quality from GSM
   waitAndReadUntilOK(signalSyncOK); //read data response
-//  cleanSerialGSM();
   requestBalance();  //request balance from GSM
   waitAndReadUntilOK(balanceSyncOK); //read data response
-//  cleanSerialGSM();
   requestTime(); //request time from GSM
   waitAndReadUntilOK(timeSyncOK); //read data response
-//  cleanSerialGSM();
   readDSresponse(); //read temp data response
   sendSMSBalance(); //check if its needed to send SMS and then send
 
@@ -735,7 +719,7 @@ void setup()
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
   timer.setInterval(SECS_PER_DAY * 80L, sendSMSBalance); //send sms with balance every 80 days
   timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
-  timer.setInterval(100L, playAudio); //100 ms delay
+  timer.setInterval(80L, playAudio); //100 ms delay
 
   readStringGSM();
   lcd.clear();
@@ -750,5 +734,4 @@ void loop()
   readEncoder();
   drawMainSreen();
   readStringGSM();
-  //playAudio();
 }

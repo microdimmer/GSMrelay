@@ -30,17 +30,18 @@ void playTemp(uint8_t temp_sens_num) { // TODO
   if (temp[temp_sens_num]==-99) { // has no data
     return;
   }
-  if (temp_sens_num==0) //play temp source (temp1 or temp2)
-    addAudio(35); // home temp
-  else
-    addAudio(34); // heater temp
-    
+  if (temp_sens_num==0) { //play temp source (temp1 or temp2)
+    addAudio(37); // home temp
+    PRINTLNF("PLAY home temp");
+    }
+  else {
+    addAudio(36); // heater temp
+    PRINTLNF("PLAY heater temp");
+    }
   if (temp[temp_sens_num]==0) {
     addAudio(28); // //play zero temp
     return;
   }
-  bool sign = (temp[temp_sens_num]>0); 
-  sign ? addAudio(30) : addAudio(29); //play sign
   uint8_t abs_temp = abs(temp[temp_sens_num]);
   if ((abs_temp > 0) && (abs_temp <= 20)) {
     addAudio(abs_temp); //play temp 1 - 20
@@ -57,5 +58,34 @@ void playTemp(uint8_t temp_sens_num) { // TODO
       }
     }
   }
-  addAudio(31);//play 'degree'
+
+  uint8_t first_digit = abs_temp % 10;
+  if ((abs_temp != 11) && (first_digit == 1)) {
+    addAudio(31);//play 'degree'
+  }
+  else if (first_digit >= 2 && first_digit <=4) {
+    addAudio(33);//play 'degrees'
+  }
+  else
+    addAudio(32);//play 'degrees'
+
+  (temp[temp_sens_num]>0) ? addAudio(30) : addAudio(29); //play sign
+}
+
+void playBalance() {
+  addAudio(38);
+  //int16_t balance = -32768; 
+  if (balance == -32768) { //no data
+    return;
+  }
+  uint8_t abs_balance = abs(balance);
+  uint8_t first_digit = abs_balance % 10;
+  if ((abs_balance != 11) && (first_digit == 1)) {
+    addAudio(31);//play 'degree'
+  }
+  else if (first_digit >= 2 && first_digit <=4) {
+    addAudio(33);//play 'degrees'
+  }
+  else
+    addAudio(32);//play 'degrees'
 }
