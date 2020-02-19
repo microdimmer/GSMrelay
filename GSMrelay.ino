@@ -4,7 +4,7 @@
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
 
-#define DEBUGGING
+//#define DEBUGGING
 
 const char PROG_VERSION = '2';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
@@ -65,12 +65,12 @@ char string_buff[8] = {'\0'}; //string buffer, used for showing info on display
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
 // int8_t t_heater_set = 0;
 // int8_t t_home_set = 0;
-int8_t signalStrength = 0;
+uint8_t signalStrength = 0;
 bool GSMonAirFlag = false; //answer call flag
 bool GSMwaitReqFlag = false; // waiting request command flag
-unsigned long lastRequestTime = 0;
-const uint32_t requestTimeDelay = 500; // separate GSM commands, time between command TODO min time 4 sec
 uint8_t readResponseCounter = 0; // count response commands to run, max 20 times x 500ms
+const uint8_t readResponseNum = 20;  //limit 20 times to wait
+const uint16_t readResponseTimeout = 500;  //responce timeout to wait
 
 uint16_t memoryFree = 0;
 int16_t balance = -32768; //min uint
@@ -224,7 +224,7 @@ void requestTime() //request time from GSM
   PRINTLNF("request time");
   if (GSMwaitReqFlag || GSMonAirFlag) {
     PRINTINFO("GSM is busy, waiting");
-    timer.setTimeout(500L,  requestTime);
+    timer.setTimeout(readResponseTimeout,  requestTime);
     return;  
   }
   else {
@@ -233,7 +233,7 @@ void requestTime() //request time from GSM
     readResponseCounter = 0;
     gsmSerial.println(F("AT+CCLK?"));
     PRINTINFO("send time request");
-    timer.setTimeout(500L,  readUntilOK, (void*) &timeSyncOK );
+    timer.setTimeout(readResponseTimeout,  readUntilOK, (void*) &timeSyncOK );
   }
 }
 
@@ -245,7 +245,7 @@ void requestSignalAndRAM() //request signal quality from GSM
   PRINTLNF("request signal strength");
   if (GSMwaitReqFlag || GSMonAirFlag) {
     PRINTINFO("GSM is busy, waiting");
-    timer.setTimeout(500L,  requestSignalAndRAM);
+    timer.setTimeout(readResponseTimeout,  requestSignalAndRAM);
     return;  
   }
   else {
@@ -254,7 +254,7 @@ void requestSignalAndRAM() //request signal quality from GSM
     readResponseCounter = 0;
     gsmSerial.println(F("AT+CSQ")); //request signal quality from GSM
     PRINTINFO("send signal strength.");
-    timer.setTimeout(500L,  readUntilOK, (void*) &signalSyncOK );
+    timer.setTimeout(readResponseTimeout,  readUntilOK, (void*) &signalSyncOK );
   }
 }
 
@@ -263,7 +263,7 @@ void requestBalance() //request balance from GSM
   PRINTLNF("request balance");
   if (GSMwaitReqFlag || GSMonAirFlag) {
     PRINTINFO("GSM is busy, waiting");
-    timer.setTimeout(500L,  requestBalance);
+    timer.setTimeout(readResponseTimeout,  requestBalance);
     return;  
   }
   else {
@@ -272,25 +272,20 @@ void requestBalance() //request balance from GSM
     readResponseCounter = 0;
     gsmSerial.println(F("AT+CUSD=1,\"#105#\",15")); //for requst balance TELE2
     PRINTINFO("send balance request");
-    timer.setTimeout(500L,  readUntilOK, (void*) &balanceSyncOK );
+    timer.setTimeout(readResponseTimeout,  readUntilOK, (void*) &balanceSyncOK );
   }
 }
 
 void readUntilOK(void* syncOKflag) //wait and read data response TODODOTODOTODO
 {
-  //PRINTLNF("readUntilOK");
-   //PRINTLNHEX("!!syncOKflagaddr=",(long)syncOKflag);
-//   PRINTLN("!!syncOKflag=",syncOKflag);
   readStringGSM();
   bool sync_ok_flag = *(reinterpret_cast<bool (*)>(syncOKflag));
-//  PRINTLN("syncOKflag=",sync_ok_flag);
-  if (sync_ok_flag || (readResponseCounter >= 20) ) {
+  if (sync_ok_flag || (readResponseCounter >= readResponseNum) ) { // max <readResponseNum> times to wait
     GSMwaitReqFlag = false;
-    //PRINTLN("readUntilOK GSMwaitReqFlag=", GSMwaitReqFlag);
     return;
   }
   PRINTINFO("waiting");
-  timer.setTimeout(500L,  readUntilOK, syncOKflag );
+  timer.setTimeout(readResponseTimeout,  readUntilOK, syncOKflag );
   readResponseCounter++;
 }
 
