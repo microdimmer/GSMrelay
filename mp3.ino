@@ -9,7 +9,8 @@ void initMP3()
 }
 
 bool isMP3Busy() {
-  return digitalRead(MP3_BUSY) == LOW;
+  return mp3Player.readState() != 512; //resistors! https://github.com/DFRobot/DFRobotDFPlayerMini/issues/20
+  //return digitalRead(MP3_BUSY) == LOW;
 }
 
 bool addAudio(uint8_t num_track) {
