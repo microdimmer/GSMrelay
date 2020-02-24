@@ -240,12 +240,12 @@ void requestTime() //request time from GSM
 void requestSignalAndRAM() //request signal quality from GSM
 {
   memoryFree = freeMemory();
-  PRINTLN("freeMemory()=", memoryFree);
+  //PRINTLN("freeMemory()=", memoryFree);
 
-  PRINTLNF("request signal strength");
+  //PRINTLNF("request signal strength");
   if (GSMwaitReqFlag || GSMonAirFlag) {
-    PRINTINFO("GSM is busy, waiting");
-    timer.setTimeout(readResponseTimeout,  requestSignalAndRAM);
+    //PRINTINFO("GSM is busy, waiting");
+    //timer.setTimeout(readResponseTimeout,  requestSignalAndRAM);
     return;  
   }
   else {
@@ -253,7 +253,7 @@ void requestSignalAndRAM() //request signal quality from GSM
     signalSyncOK = false;
     readResponseCounter = 0;
     gsmSerial.println(F("AT+CSQ")); //request signal quality from GSM
-    PRINTINFO("send signal strength.");
+    //PRINTINFO("send signal strength.");
     timer.setTimeout(readResponseTimeout,  readUntilOK, (void*) &signalSyncOK );
   }
 }
@@ -323,8 +323,6 @@ void readStringGSM() //read data from GSM module
       GSMstring[2] ='\0';// must return like '22'
       signalStrength = atoi(GSMstring) * 100 / 31; // convert to percent, didnt need to check number, if needed, use sscanf or strtol
       signalSyncOK = true; //maybe return data
-      //PRINTLN("signalSyncOK=",signalSyncOK);
-      //PRINTLNHEX("signalSyncOK addr=",(long)&signalSyncOK);
       PRINTLN("signal strength=", signalStrength);
     }
     else if (strstr_P(GSMstring, PSTR("+CCLK: ")) != NULL) //return time, command like +CCLK: "18/11/29,07:34:36+05" (if received time data), also GSM return this line on init +CTZV:17/07/28,19:03:51,+06 but we didnt process it
@@ -348,8 +346,6 @@ void readStringGSM() //read data from GSM module
       setTime(parse_time_arr[3], parse_time_arr[4], parse_time_arr[5], parse_time_arr[2], parse_time_arr[1], parse_time_arr[0]); //set time and date  setTime(int hr,int min,int sec,int dy, int mnth, int yr)
       adjustTime(parse_time_arr[6] * SECS_PER_HOUR);                                                                             //set timezone
       timeSyncOK = true;
-//      PRINTLN("timeSyncOK=",timeSyncOK);
-      //PRINTLNHEX("timeSyncOK addr=",(long)&timeSyncOK);
       PRINTLNF("sync clock OK");
     }
     else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1  (if received balance data)
@@ -370,7 +366,6 @@ void readStringGSM() //read data from GSM module
       if (checkNumber(GSMstring)) //check phone number +CLCC:
       {
         GSMonAirFlag = true;
-        timer.setTimeout(30000L, hangUpGSM);
   
         relayFlag = !relayFlag;
         digitalWrite(RELAY_PIN, relayFlag);
@@ -378,7 +373,7 @@ void readStringGSM() //read data from GSM module
         cleanSerialGSM();
         gsmSerial.println(F("ATA"));                       //answer call
         PRINTLNF("answer call");
-        timer.setTimeout(500, playGSM);
+        timer.setTimeout(1500, playGSM);
         if (currentMenu == 0)
         {
           lcd.clear();
@@ -389,6 +384,12 @@ void readStringGSM() //read data from GSM module
   
         //cleanSerialGSM();
       }
+    }
+    else if ((strstr_P(GSMstring, PSTR("+CIEV: \"CALL\",0")) != NULL) && GSMonAirFlag) { //+CIEV "CALL",0 - if call is in progress (true/false)
+      PRINTLNF("call ended");
+      audioQueue.clear();
+      //timer.deleteTimer(hangup_timer_id);
+      hangUpGSM();
     }
     else
       PRINTLN("GSMstring=", GSMstring);
@@ -442,15 +443,8 @@ void hangUpGSM()
   cleanSerialGSM();
   gsmSerial.println(F("AT+CHUP")); //hang up all calls
   GSMonAirFlag = false;
-}
-
-void playGSM()
-{
-  mp3Player.volume(30); //set volume value. From 0 to 30
-  relayFlag ? addAudio(34) : addAudio(35); //play switch on/off
-  playTemp(0); //play temp home
-  playTemp(1); //play temp heater
-  playBalance();
+  GSMwaitReqFlag = false;
+  
 }
 
 void backlightOFF()
@@ -714,7 +708,8 @@ void setup()
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
   timer.setInterval(SECS_PER_DAY * 80L, sendSMSBalance); //send sms with balance every 80 days
   timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
-  timer.setInterval(80L, playAudio); //100 ms delay
+//  timer.setInterval(10L, playAudio); //100 ms delay
+  //timer.setInterval(50L, playAudio); //100 ms delay
 
   readStringGSM();
   lcd.clear();

@@ -66,3 +66,7 @@ sound/mp3/0033.mp3
 sound/mp3/0034.mp3
 sound/mp3/0035.mp3
 sound/mp3/readme.txt
+*.mp3
+*.wav
+*.wav
+sound/mp3/root/readme.txt

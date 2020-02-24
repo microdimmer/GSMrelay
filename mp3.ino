@@ -1,30 +1,47 @@
 void initMP3()
 {
   mp3Serial.begin(9600);
-  if (mp3Player.begin(mp3Serial))
-  { //Use softwareSerial to communicate with mp3.
+  if (mp3Player.begin(mp3Serial)) { //Use softwareSerial to communicate with mp3.
     PRINTLNF("DFPlayer Mini init OK");
   }
+  mp3Player.volume(30); //set volume value. From 0 to 30
   mp3Player.pause();
 }
 
+void playGSM()
+{
+  relayFlag ? addAudio(34) : addAudio(35); //play switch on/off
+  playTemp(0); //play temp home
+  playTemp(1); //play temp heater
+  playBalance();
+  playAudio();
+}
+
 bool isMP3Busy() {
-  return mp3Player.readState() != 512; //resistors! https://github.com/DFRobot/DFRobotDFPlayerMini/issues/20
-  //return digitalRead(MP3_BUSY) == LOW;
+  return digitalRead(MP3_BUSY) == LOW; //resistors! https://github.com/DFRobot/DFRobotDFPlayerMini/issues/20
 }
 
 bool addAudio(uint8_t num_track) {
   if (!audioQueue.isFull()) 
     return audioQueue.push(num_track);
-  else { PRINTLNF("isFull"); 
+  else { PRINTLNF("audioQueue isFull"); 
     return false;}
 }
 
 void playAudio() {
-  if (isMP3Busy() || audioQueue.isEmpty())
+  if (isMP3Busy() ) {
+    timer.setTimeout(40L, playAudio);
     return;
-
-    mp3Player.play(audioQueue.shift());
+  }
+  if (audioQueue.isEmpty()) {
+    PRINTLNF("audioQueue isEmpty"); 
+    if (GSMonAirFlag)
+      hangUpGSM();
+    return; 
+  }
+//  PRINTLN("audioQueue ",audioQueue.size());
+  mp3Player.play(audioQueue.shift());
+  timer.setTimeout(40L, playAudio);
 }
 
 void playTemp(uint8_t temp_sens_num) {
@@ -33,11 +50,9 @@ void playTemp(uint8_t temp_sens_num) {
   
   if (temp_sens_num==0) { //play temp source (temp1 or temp2)
     addAudio(37); // home temp
-    PRINTLNF("PLAY home temp");
     }
   else {
     addAudio(36); // heater temp
-    PRINTLNF("PLAY heater temp");
   }
   
   //play zero temp
@@ -47,22 +62,6 @@ void playTemp(uint8_t temp_sens_num) {
   }
   else { //if not zero
     playNumber(abs_temp);
-    // uint8_t abs_temp = abs(temp[temp_sens_num]);
-    // if ((abs_temp > 0) && (abs_temp <= 20)) {
-    //   addAudio(abs_temp); //play temp 1 - 20
-    // }
-    // else {
-    //   for (uint8_t i = 2; i < 9; i++) //play temp 21 - 99
-    //   {
-    //     uint8_t first_digit = i*10;
-    //     uint8_t last_digit = first_digit+10;
-    //     if ( (abs_temp >= first_digit) && (abs_temp < last_digit)) {
-    //       uint8_t digits = abs_temp - first_digit;
-    //       addAudio(18+i);
-    //       if (digits !=0 ) addAudio(digits);
-    //     }
-    //   }
-    // }
   }
 
   //play 'degree'
@@ -96,19 +95,18 @@ void playBalance() {
 
   uint8_t abs_balance = abs(balance);
   playNumber(abs_balance);
- 
   //play 'ruble'
   uint8_t two_first_digit = abs_balance % 100;
   uint8_t first_digit = two_first_digit % 10;
   uint8_t second_digit = (two_first_digit / 10) % 10;
   if ((two_first_digit != 11) && (first_digit == 1)) {
-    addAudio(31); //рубль
+    addAudio(39); //рубль
   }
   else if (first_digit >= 2 && first_digit <=4 && second_digit != 1) {
-    addAudio(33);//рубля
+    addAudio(41);//рубля
   }
   else
-    addAudio(32);//рублей
+    addAudio(40);//рублей
 }
 
 void playNumber(uint16_t num) {
