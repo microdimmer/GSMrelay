@@ -59,7 +59,6 @@ DFRobotDFPlayerMini mp3Player;
 SimpleTimer timer;
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
-//char GSMstring[64]; //GSM read string buffer
 char GSMstring[64] = {'\0'}; //GSM read string buffer
 char string_buff[8] = {'\0'}; //string buffer, used for showing info on display
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
@@ -79,6 +78,7 @@ bool relayFlag = false;
 bool backlightFlag = true;
 bool updateMainScreenFlag = true;
 bool clearMainSreenFlag = false;
+bool GSMinitOK = false;
 bool timeSyncOK = false;
 bool signalSyncOK = false;
 bool balanceSyncOK = false;
@@ -163,8 +163,6 @@ void loadingAnimation(uint32_t a_delay, uint8_t count = 1) //loading animation T
 
 void initGSM() //TODO
 {  
-  lcd.setCursor(3, 1); // display loading message
-  lcd.print(F("\267a\264py\267\272a     ")); // clear display //загрузка
   lcd.setCursor(11, 1);
 
   PRINTINFO("check already initialized");
@@ -175,6 +173,7 @@ void initGSM() //TODO
     loadingAnimation(500);
     if (gsmSerial.find(strcpy_P(string_buff, PSTR("OK")))) {//copy PROGMEM to buff and find answer in GSM serial 
       PRINTLNF("GSM already initialized");
+      GSMinitOK = true;
       return;
     }
   }
@@ -198,24 +197,32 @@ void initGSM() //TODO
   }
   gsmSerial.begin(9600);
   
-//  while (true)
   PRINTINFO("initialize GSM");  
   for (uint8_t i = 0; i < 20; i++)
   {
     gsmSerial.println(F("AT+CPAS"));
-    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) //copy PROGMEM to buff and find answer in GSM serial 
+    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) { //copy PROGMEM to buff and find answer in GSM serial 
+      GSMinitOK = true;
+      PRINTLNF("init GSM OK");
       break;
-    
+    }
+    readStringGSM();
     loadingAnimation(500);// display loading animation
   }
+
+  if (!GSMinitOK) {
+     PRINTINFO("GSM init failed!");
+     return;
+  }
+    
   gsmSerial.println(F("ATE0")); //echo off
   loadingAnimation(500);
   gsmSerial.println(F("AT+CSCS=\"GSM\"")); // "GSM","HEX","PCCP936","UCS2
-  loadingAnimation(500);
   cleanSerialGSM();
+  PRINTLNF("waiting for SIM ready");
   loadingAnimation(500,10); //5 sec waiting if init first time
   PRINTLNF("");
-  PRINTLNF("init GSM OK");
+  PRINTLNF("init GSM finished");
   cleanSerialGSM();
 }
 
@@ -244,7 +251,7 @@ void requestSignalAndRAM() //request signal quality from GSM
 
   //PRINTLNF("request signal strength");
   if (GSMwaitReqFlag || GSMonAirFlag) {
-    //PRINTINFO("GSM is busy, waiting");
+    PRINTINFO("GSM is busy");
     //timer.setTimeout(readResponseTimeout,  requestSignalAndRAM);
     return;  
   }
@@ -272,13 +279,13 @@ void requestBalance() //request balance from GSM
     readResponseCounter = 0;
     gsmSerial.println(F("AT+CUSD=1,\"#105#\",15")); //for requst balance TELE2
     PRINTINFO("send balance request");
-    timer.setTimeout(readResponseTimeout,  readUntilOK, (void*) &balanceSyncOK );
+    timer.setTimeout(readResponseTimeout,  readUntilOK, &balanceSyncOK ); //PRINTLNHEX("balanceSyncOK hex1=",(long)&balanceSyncOK);
   }
 }
 
 void readUntilOK(void* syncOKflag) //wait and read data response TODODOTODOTODO
 {
-  readStringGSM();
+  readStringGSM(); //PRINTLNHEX("after readStringGSM hex1=",(long)syncOKflag);
   bool sync_ok_flag = *(reinterpret_cast<bool (*)>(syncOKflag));
   if (sync_ok_flag || (readResponseCounter >= readResponseNum) ) { // max <readResponseNum> times to wait
     GSMwaitReqFlag = false;
@@ -304,8 +311,6 @@ void readStringGSM() //read data from GSM module
 {
   memset(GSMstring,0,sizeof(GSMstring));
   GSMstring[0] = '\0';
-//   while (gsmSerial.available())
-//     Serial.write(gsmSerial.read()); //Forward what Software Serial received to Serial Port
   if (gsmSerial.available()) {
     if (gsmSerial.readBytesUntil('\n',GSMstring,sizeof(GSMstring)) < 4 ) { // \n  line feed - new line 0x0a 
 //      PRINTLN("GSMstring=", GSMstring);
@@ -351,10 +356,10 @@ void readStringGSM() //read data from GSM module
     else if (strstr_P(GSMstring, PSTR("+CUSD: ")) != NULL) //return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1  (if received balance data)
     {                                                     //                                  +CUSD: 2, "OCTATOK 151.8 p." ,1
       strncpy(GSMstring,strstr_P(GSMstring, PSTR("+CUSD: "))+11,64); //cut string will be like OCTATOK 151.8 p." ,1
-      decode7Bit(GSMstring);
+      decode7Bit(GSMstring, sizeof(GSMstring));
       if (sscanf(GSMstring,"%*[^-0123456789]%d",&balance) == 1){  //find int
         PRINTLN("balance=",balance);
-        balanceSyncOK = true;
+        balanceSyncOK = true; // PRINTLNHEX("balanceSyncOK hex=",(long)&balanceSyncOK);
       }
       else {
         PRINTLNF("check balance error!"); 
@@ -396,12 +401,13 @@ void readStringGSM() //read data from GSM module
   }
 }
 
-void decode7Bit(char *in_str) //decode USSD 7bit response
+void decode7Bit(char *in_str, uint8_t dataSize) //decode USSD 7bit response
 {
-  char out_str[64];
+  char out_str[dataSize-1]  = {'\0'};
+  memset(out_str,0,sizeof(out_str));
   byte reminder = 0;
   int bitstate = 7;
-  for (byte i = 0; in_str[i] != '\0' || i <64; i++) {
+  for (byte i = 0; in_str[i] != '\0' || i <dataSize-1; i++) {
       byte b = in_str[i];
       char c = ((b << (7 - bitstate)) + reminder) & 0x7F;
       out_str[i] = c;
@@ -412,7 +418,7 @@ void decode7Bit(char *in_str) //decode USSD 7bit response
         reminder = 0;
         bitstate = 7;
       }
-    }
+  }
   strcpy(in_str,out_str);
 }
 
@@ -483,44 +489,28 @@ void drawMainSreen()
     lcd.clear();
     clearMainSreenFlag = false;
   }
+  currentMenu = 0;
+  updateMainScreenFlag = false;
   
-  //lcd.createChar(3, memory);
-  lcd.createChar(4, gsm);
-  lcd.createChar(5, celsius);
-  lcd.createChar(6, home);
-  lcd.createChar(7, heater);
-  lcd.createChar(3, ruble);
+  ////lcd.createChar(3, memory);
+//  lcd.createChar(5, celsius);
+//  lcd.createChar(6, home);
+//  lcd.createChar(7, heater);
+
+  //relay state show
+  lcd.setCursor(0, 0);
+  relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
   
   //time show
-  lcd.setCursor(0, 0);
+  lcd.setCursor(5, 0);
   sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), hour());
   lcd.print(two_digits_buff);
   ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
   sprintf(two_digits_buff, string_buff, minute());
   lcd.print(two_digits_buff);
   
-  //balance show
-  lcd.setCursor(1, 1);
-  if (balance==-32768) {
-    lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
-  }
-  else {
-    sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), balance);
-    lcd.print(two_digits_buff);
-  }
-  lcd.write(3); // russian currency sign
-
-  lcd.setCursor(12, 1);
-  lcd.write(4); //GSM sign
-  sprintf(two_digits_buff, string_buff, signalStrength);
-  lcd.print(two_digits_buff);
-  lcd.write('%');
-
-  lcd.setCursor(12, 0);
-  relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
-
   for (uint8_t i = 0; i<=1; i++) {
-    lcd.setCursor(6, i);
+    lcd.setCursor(12, i);
     lcd.write(6+i); //6 home sign, 7 heater sign
     if (temp[i]==-99) {
       lcd.print(strcpy_P(two_digits_buff, PSTR("--"))); //temp is invalid show --
@@ -531,9 +521,36 @@ void drawMainSreen()
     }
     lcd.write(5); //celsius
   }
+    
+  //balance show
+  if (!GSMinitOK) {
+    lcd.setCursor(0, 1);
+    lcd.print(F("O\254\245\240KA GSM"));
+    return;
+  }
+//  lcd.createChar(3, ruble);
+//  lcd.createChar(4, gsm);
+  lcd.setCursor(1, 1);
+  if (balance==-32768) {
+    lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
+  }
+  else {
+    sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), balance);
+    lcd.print(two_digits_buff);
+  }
+  lcd.write(3); // russian currency sign
+  lcd.setCursor(6, 1);
+//  lcd.setCursor(12, 1);
+  lcd.write(4); //GSM sign
+  if (signalStrength==0) {
+    lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
+  }
+  else {  
+    sprintf(two_digits_buff, string_buff, signalStrength);
+    lcd.print(two_digits_buff);
+  }
+  lcd.write('%');
 
-  currentMenu = 0;
-  updateMainScreenFlag = false;
 }
 
 uint16_t addrToRead() { //EEPROM address to read from TODO test
@@ -626,7 +643,7 @@ void sendSMSBalance() {
     gsmSerial.write(26); //Ctr+Z - end of SMS
     delay(100);
     gsmSerial.println("AT+CMGF=0"); // Configuring TEXT mode
-    PRINTLNF("Sending SMS done!");
+    PRINTLNF("Sending SMS done");
     timer.setTimeout(SECS_PER_MIN * 5000L, requestBalance);//request balance 5 min later
   }
     GSMwaitReqFlag = false;
@@ -643,6 +660,11 @@ void setup()
   digitalWrite(RELAY_PIN, relayFlag); //relay OFF
 
   lcd.init(); //init display
+  lcd.createChar(3, ruble);
+  lcd.createChar(4, gsm);
+  lcd.createChar(5, celsius);
+  lcd.createChar(6, home);
+  lcd.createChar(7, heater);
   lcd.setBacklight(backlightFlag);
   lcd.clear();
   lcd.setCursor(1, 0);
@@ -650,20 +672,13 @@ void setup()
   lcd.setCursor(12, 0);
   lcd.print(F("0."));
   lcd.print(PROG_VERSION);
-  lcd.setCursor(3, 1);
-  initDS();  //init DS temp modules
-  requestTemp();  //request temp
+  lcd.setCursor(3, 1); // display loading message
+  lcd.print(F("\267a\264py\267\272a     ")); //загрузка
+  
   initMP3(); //mp3 serial port by default is not listening
   initGSM(); //init GSM module, the last intialized port is listening
-
-  requestSignalAndRAM();  //request signal quality from GSM
-  waitAndReadUntilOK(signalSyncOK); //read data response
-  requestBalance();  //request balance from GSM
-  waitAndReadUntilOK(balanceSyncOK); //read data response
-  requestTime(); //request time from GSM
-  waitAndReadUntilOK(timeSyncOK); //read data response
-  readDSresponse(); //read temp data response
-  sendSMSBalance(); //check if its needed to send SMS and then send
+  initDS();  //init DS temp modules
+  requestTemp();  //request temp
 
   menu_system.set_focusPosition(Position::LEFT); //init menu system
   main_line1.attach_function(1, go_switch_relay);
@@ -702,14 +717,26 @@ void setup()
   info_line4.set_asProgmem(1);
   // info_line5.set_asProgmem(1);
 
-  timer.setInterval(1000, requestTemp); //request temp once a second
-  timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
+  timer.setInterval(1000, requestTemp); //request temp once a second and update screen
+  timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins, backlight timer ID = 2 dont change sequence!
+
+  if (!GSMinitOK) {
+    return;
+  }
+    
+  requestBalance();  //request balance from GSM
+  waitAndReadUntilOK(&balanceSyncOK); //read data response
+  requestSignalAndRAM();  //request signal quality from GSM
+  waitAndReadUntilOK(&signalSyncOK); //read data response
+  requestTime(); //request time from GSM
+  waitAndReadUntilOK(&timeSyncOK); //read data response
+  readDSresponse(); //read temp data response
+  sendSMSBalance(); //check if its needed to send SMS and then send
+
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
   timer.setInterval(SECS_PER_DAY * 80L, sendSMSBalance); //send sms with balance every 80 days
   timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
-//  timer.setInterval(10L, playAudio); //100 ms delay
-  //timer.setInterval(50L, playAudio); //100 ms delay
 
   readStringGSM();
   lcd.clear();
