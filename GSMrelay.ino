@@ -4,7 +4,7 @@
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
 
-//#define DEBUGGING
+#define DEBUGGING
 
 const char PROG_VERSION = '2';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
@@ -70,6 +70,7 @@ bool GSMwaitReqFlag = false; // waiting request command flag
 uint8_t readResponseCounter = 0; // count response commands to run, max 20 times x 500ms
 const uint8_t readResponseNum = 20;  //limit 20 times to wait
 const uint16_t readResponseTimeout = 500;  //responce timeout to wait
+int16_t backlightTimerID = 0;
 
 uint16_t memoryFree = 0;
 int16_t balance = -32768; //min uint
@@ -78,6 +79,7 @@ bool relayFlag = false;
 bool backlightFlag = true;
 bool updateMainScreenFlag = true;
 bool clearMainSreenFlag = false;
+bool SIMreadyOK = false;
 bool GSMinitOK = false;
 bool timeSyncOK = false;
 bool signalSyncOK = false;
@@ -165,18 +167,33 @@ void initGSM() //TODO
 {  
   lcd.setCursor(11, 1);
 
+  memset(GSMstring,0,sizeof(GSMstring));
+  GSMstring[0] = '\0';
+
   PRINTINFO("check already initialized");
   gsmSerial.begin(9600);
-  for (uint8_t i = 0; i < 4; i++)
-  {
-    gsmSerial.println(F("AT"));
+  for (uint8_t i = 0; i < 4; i++)  {
+    gsmSerial.println(F("AT")); 	
     loadingAnimation(500);
-    if (gsmSerial.find(strcpy_P(string_buff, PSTR("OK")))) {//copy PROGMEM to buff and find answer in GSM serial 
-      PRINTLNF("GSM already initialized");
-      GSMinitOK = true;
-      return;
+    if (gsmSerial.find(strcpy_P(string_buff, PSTR("OK")))) {//copy PROGMEM to buff and find answer in GSM serial
+      for (uint8_t i = 0; i < 4; i++) {
+        gsmSerial.println(F("AT+CPIN?")); // Query SIM PIN status
+        loadingAnimation(500,4);
+        gsmSerial.readBytesUntil('\n',GSMstring,sizeof(GSMstring));
+        if (strstr_P(GSMstring, PSTR("+CPIN:READY")) != NULL) {// SIM ok
+          PRINTLNF("GSM already initialized");
+          GSMinitOK = true;
+          return;
+        }
+        else if (strstr_P(GSMstring, PSTR("+CME ERROR:10")) != NULL) { //no SIM card
+          PRINTLNF("no SIM");
+          cleanSerialGSM();
+          return;
+        }
+      }
     }
   }
+
   cleanSerialGSM();
   
   gsmSerial.begin(115200);
@@ -201,18 +218,27 @@ void initGSM() //TODO
   for (uint8_t i = 0; i < 20; i++)
   {
     gsmSerial.println(F("AT+CPAS"));
-    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) { //copy PROGMEM to buff and find answer in GSM serial 
-      GSMinitOK = true;
-      PRINTLNF("init GSM OK");
-      break;
+    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) {
+      for (uint8_t i = 0; i < 4; i++) {
+        gsmSerial.println(F("AT+CPIN?")); // Query SIM PIN status
+        loadingAnimation(500,4);
+        gsmSerial.readBytesUntil('\n',GSMstring,sizeof(GSMstring));
+        if (strstr_P(GSMstring, PSTR("+CPIN:READY")) != NULL) {// SIM ok
+          PRINTLNF("GSM already initialized");
+          GSMinitOK = true;
+          break;
+        }
+        else if (strstr_P(GSMstring, PSTR("+CME ERROR:10")) != NULL) { //no SIM card
+          PRINTLNF("no SIM");
+          PRINTINFO("GSM init failed!");
+          return;
+        }
+      }
     }
+    if (GSMinitOK) 
+      break;
     readStringGSM();
     loadingAnimation(500);// display loading animation
-  }
-
-  if (!GSMinitOK) {
-     PRINTINFO("GSM init failed!");
-     return;
   }
     
   gsmSerial.println(F("ATE0")); //echo off
@@ -300,8 +326,8 @@ void waitAndReadUntilOK(const bool &syncOK) { //wait and read data response
     for (uint8_t i = 0; i<21; i++) { 
       timer.run(); //running readUntilOK
       if (syncOK) {
-//        PRINTLNF(".syncOK!");
-        return;
+      //  PRINTLNF(".syncOK!");
+       return;
       }
       loadingAnimation(500);
   }
@@ -467,7 +493,7 @@ void backlightOFF()
 
 void backlightON()
 {
-  timer.restartTimer(2); //restart backlight timer, ID 2
+  timer.restartTimer(backlightTimerID); //restart backlight timer, ID 2
   if (!backlightFlag)
   {
     PRINTLNF("switch backlight on");
@@ -659,33 +685,34 @@ void setup()
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, relayFlag); //relay OFF
 
-  lcd.init(); //init display
-  lcd.createChar(3, ruble);
-  lcd.createChar(4, gsm);
-  lcd.createChar(5, celsius);
-  lcd.createChar(6, home);
-  lcd.createChar(7, heater);
-  lcd.setBacklight(backlightFlag);
-  lcd.clear();
-  lcd.setCursor(1, 0);
-  lcd.print(F("GSM-pe\273e v.")); //GSM-реле v.
-  lcd.setCursor(12, 0);
-  lcd.print(F("0."));
-  lcd.print(PROG_VERSION);
-  lcd.setCursor(3, 1); // display loading message
-  lcd.print(F("\267a\264py\267\272a     ")); //загрузка
+  initMenu();
+  // lcd.init(); //init display
+  // lcd.createChar(3, ruble);
+  // lcd.createChar(4, gsm);
+  // lcd.createChar(5, celsius);
+  // lcd.createChar(6, home);
+  // lcd.createChar(7, heater);
+  // lcd.setBacklight(backlightFlag);
+  // lcd.clear();
+  // lcd.setCursor(1, 0);
+  // lcd.print(F("GSM-pe\273e v.")); //GSM-реле v.
+  // lcd.setCursor(12, 0);
+  // lcd.print(F("0."));
+  // lcd.print(PROG_VERSION);
+  // lcd.setCursor(3, 1); // display loading message
+  // lcd.print(F("\267a\264py\267\272a     ")); //загрузка
   
   initMP3(); //mp3 serial port by default is not listening
   initGSM(); //init GSM module, the last intialized port is listening
   initDS();  //init DS temp modules
   requestTemp();  //request temp
 
-  menu_system.set_focusPosition(Position::LEFT); //init menu system
-  main_line1.attach_function(1, go_switch_relay);
-  //main_line2.attach_function(1, func);
-  //main_line3.attach_function(1, func);
-  main_line4.attach_function(1, go_info_menu);
-  main_line5.attach_function(1, go_main_screen);
+//   menu_system.set_focusPosition(Position::LEFT); //init menu system
+//   main_line1.attach_function(1, go_switch_relay);
+//   main_line2.attach_function(1, func);
+//   //main_line3.attach_function(1, func);
+//   main_line4.attach_function(1, go_info_menu);
+//   main_line5.attach_function(1, go_main_screen);
 
 //  temp_line1.attach_function(1, func);
 //  temp_line2.attach_function(1, func);
@@ -693,17 +720,17 @@ void setup()
 //  temp_line4.attach_function(1, func);
 //  temp_line5.attach_function(1, go_main_screen);
   
-  info_line1.attach_function(1, func);
-  info_line2.attach_function(1, func);
-  info_line3.attach_function(1, func);
-  info_line4.attach_function(1, go_main_menu);
-  // info_line5.attach_function(1, go_main_menu);
+//   info_line1.attach_function(1, func);
+//   info_line2.attach_function(1, func);
+//   info_line3.attach_function(1, func);
+//   info_line4.attach_function(1, go_main_menu);
+//   // info_line5.attach_function(1, go_main_menu);
 
-  main_line1.set_asProgmem(1); //set PROGMEM menu lines
-  //main_line2.set_asProgmem(1);
-  //main_line3.set_asProgmem(1);
-  main_line4.set_asProgmem(1);
-  main_line5.set_asProgmem(1);
+//   main_line1.set_asProgmem(1); //set PROGMEM menu lines
+//   main_line2.set_asProgmem(1);
+//   //main_line3.set_asProgmem(1);
+//   main_line4.set_asProgmem(1);
+//   main_line5.set_asProgmem(1);
 
 //  temp_line1.set_asProgmem(1);
 //  temp_line2.set_asProgmem(1);
@@ -711,25 +738,26 @@ void setup()
 //  temp_line4.set_asProgmem(1);
 //  temp_line5.set_asProgmem(1);
 
-  info_line1.set_asProgmem(1);
-  info_line2.set_asProgmem(1);
-  info_line3.set_asProgmem(1);
-  info_line4.set_asProgmem(1);
-  // info_line5.set_asProgmem(1);
+//   info_line1.set_asProgmem(1);
+//   info_line2.set_asProgmem(1);
+//   info_line3.set_asProgmem(1);
+//   info_line4.set_asProgmem(1);
+//   // info_line5.set_asProgmem(1);
 
   timer.setInterval(1000, requestTemp); //request temp once a second and update screen
-  timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins, backlight timer ID = 2 dont change sequence!
-
+  backlightTimerID = timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
+  
+  lcd.clear();
   if (!GSMinitOK) {
     return;
   }
     
   requestBalance();  //request balance from GSM
-  waitAndReadUntilOK(&balanceSyncOK); //read data response
+  waitAndReadUntilOK(balanceSyncOK); //read data response
   requestSignalAndRAM();  //request signal quality from GSM
-  waitAndReadUntilOK(&signalSyncOK); //read data response
+  waitAndReadUntilOK(signalSyncOK); //read data response
   requestTime(); //request time from GSM
-  waitAndReadUntilOK(&timeSyncOK); //read data response
+  waitAndReadUntilOK(timeSyncOK); //read data response
   readDSresponse(); //read temp data response
   sendSMSBalance(); //check if its needed to send SMS and then send
 

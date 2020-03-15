@@ -6,16 +6,16 @@ const char memory[] PROGMEM = "\x0A\x1F\x0A\x1F\x0A\x1F\x0A\x00"; //{0x0A, 0x1F,
 const char ruble[] PROGMEM = "\x0E\x09\x09\x1E\x08\x1C\x08\x08"; //{ 0x0E,  0x09,  0x09,  0x1E,  0x08,  0x1C,  0x08, 0x08};
 
 const char MENU_ON_OFF[] PROGMEM = {"B\272\273/B\303k\273"}; //Вкл/Выкл
-//const char MENU_TEMP[] PROGMEM = {"Уст.темп"};       //TODO
+const char MENU_TEMP[] PROGMEM = {"\251c\277.\277e\274\276"}; //Уст.темп       //TODO
 //const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
 //const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
 const char MENU_INFO[] PROGMEM = {"\245\275\344o"}; //Инфо
 const char MENU_EXIT[] PROGMEM = {"B\303xo\343"}; //Выход
 
-//const char MENU_TEMP_SET_HOME[] PROGMEM = {"Уст.т возд"};
-//const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"Уст.т рад"};
-//const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"Гист возд."};
-//const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"Гист рад."};
+const char MENU_TEMP_SET_HOME[] PROGMEM = {"\251c\277.\277 \263o\267\343"}; //Уст.т возд
+const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"\251c\277.\277 pa\343"}; //Уст.т рад
+const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"\241\270c\277 \263o\267\343."}; //Гист возд.
+const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"\241\270c\277 pa\343."}; //Гист рад.
 
 const char MENU_INFO_HOME[] PROGMEM = {"\340o\274      %+03d°C"}; //Дом
 const char MENU_INFO_HEATER[] PROGMEM = {"Pa\343\270a\277op %+03d°C"}; //Радиатор
@@ -23,23 +23,23 @@ const char MENU_INFO_GSM[] PROGMEM = {"GSM c\270\264\275a\273  %02d%%"}; //GSM �
 //const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
 
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
-//LiquidLine main_line3(1, 1, MENU_TEMP);
-//LiquidLine main_line2(1, 0, MENU_SCHEDULE);
-LiquidLine main_line4(1, 1, MENU_INFO);
-LiquidLine main_line5(1, 0, MENU_EXIT);
+LiquidLine main_line2(1, 1, MENU_TEMP);
+//LiquidLine main_line3(1, 0, MENU_SCHEDULE);
+LiquidLine main_line4(1, 0, MENU_INFO);
+LiquidLine main_line5(1, 1, MENU_EXIT);
 //LiquidScreen main_screen1(main_line1, main_line2);
 //LiquidScreen main_screen2(main_line3, main_line4);
-LiquidScreen main_screen1(main_line1, main_line4);
-LiquidScreen main_screen3(main_line5);
-//LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME);
-//LiquidLine temp_line3(1, 1, MENU_TEMP_SET_RADIATOR);
-//LiquidLine temp_line2(1, 0, MENU_TEMP_HOME_HYSTERESIS);
-//LiquidLine temp_line4(1, 1, MENU_TEMP_RADIATOR_HYSTERESIS);
-//LiquidLine temp_line5(1, 0, MENU_EXIT);
+LiquidScreen main_screen1(main_line1, main_line2);
+LiquidScreen main_screen3(main_line4, main_line5);
+LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME);
+LiquidLine temp_line3(1, 1, MENU_TEMP_SET_RADIATOR);
+LiquidLine temp_line2(1, 0, MENU_TEMP_HOME_HYSTERESIS);
+LiquidLine temp_line4(1, 1, MENU_TEMP_RADIATOR_HYSTERESIS);
+LiquidLine temp_line5(1, 0, MENU_EXIT);
 //
-//LiquidScreen temp_screen1(temp_line1, temp_line2);
-//LiquidScreen temp_screen2(temp_line3, temp_line4);
-//LiquidScreen temp_screen3(temp_line5);
+LiquidScreen temp_screen1(temp_line1, temp_line2);
+LiquidScreen temp_screen2(temp_line3, temp_line4);
+LiquidScreen temp_screen3(temp_line5);
 LiquidLine info_line1(1, 0, MENU_INFO_HOME, temp[0]);
 LiquidLine info_line2(1, 1, MENU_INFO_HEATER, temp[1]);
 LiquidLine info_line3(1, 0, MENU_INFO_GSM, signalStrength);
@@ -49,7 +49,7 @@ LiquidScreen info_screen1(info_line1, info_line2);
 LiquidScreen info_screen2(info_line3, info_line4);
 // LiquidScreen info_screen3(info_line5);
 LiquidMenu main_menu(lcd, main_screen1, main_screen3, 1);
-//LiquidMenu temp_menu(lcd, temp_screen1, temp_screen2, temp_screen3, 1);
+LiquidMenu temp_menu(lcd, temp_screen1, temp_screen2, temp_screen3, 1);
 LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
-LiquidSystem menu_system(main_menu, info_menu, 1);
-//LiquidSystem menu_system(main_menu, info_menu, temp_menu, 1);
+// LiquidSystem menu_system(main_menu, info_menu, 1);
+LiquidSystem menu_system(main_menu, info_menu, temp_menu, 1);
