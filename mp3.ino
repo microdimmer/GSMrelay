@@ -1,9 +1,10 @@
 void initMP3()
 {
   mp3Serial.begin(9600);
-  if (mp3Player.begin(mp3Serial)) { //Use softwareSerial to communicate with mp3.
-    PRINTLNF("DFPlayer Mini init OK");
-  }
+  mp3Player.begin(mp3Serial);
+  // if (mp3Player.begin(mp3Serial)) { //Use softwareSerial to communicate with mp3.
+  //   PRINTLNF("DFPlayer Mini init OK");
+  // }
   mp3Player.volume(30); //set volume value. From 0 to 30
   mp3Player.pause();
 }

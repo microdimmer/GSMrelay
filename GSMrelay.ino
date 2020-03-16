@@ -4,7 +4,7 @@
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
 
-#define DEBUGGING
+//#define DEBUGGING
 
 const char PROG_VERSION = '2';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
@@ -27,15 +27,14 @@ const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, P
 #include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree TODO
 #include <CircularBuffer.h> // https://github.com/rlogiacco/CircularBuffer //TODO del
 #include <OneWire.h>             //for DS18B20
-#include <DFRobotDFPlayerMini.h> //DF MP3 Player mini
-//#include <DFPlayerMini_Fast.h> //DFPlayer MP3 mini https://github.com/scottpav/DFPlayerMini_Fast
+// #include <DFRobotDFPlayerMini.h> //DF MP3 Player mini
+#include <DFPlayerMini_Fast.h> //DFPlayer MP3 mini https://github.com/scottpav/DFPlayerMini_Fast
 #include <ClickEncoder.h>   //encoder with button https://github.com/0xPIT/encoder
 #include <TimeLib.h>        //timekeeping https://github.com/PaulStoffregen/Time
-#include <SoftwareSerial.h> //for GSM modem A6
+#include <SoftwareSerial.h> //for GSM modem A6 and MP3 module 
 #include <SimpleTimer.h>    // Handy timers with callback parameters and polling https://github.com/marcelloromani/Arduino-SimpleTimer
 #include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/johnrickman/LiquidCrystal_I2C
 #include <EEPROM.h>         //saving log data to EEPROM and send SMS every 2.5 month
-#include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/johnrickman/LiquidCrystal_I2C
 
 struct Log {
   int8_t home_temp; // temp +- 63, 1 byte, and sentinel, see this https://sites.google.com/site/dannychouinard/Home/atmel-avr-stuff/eeprom-longevity
@@ -54,8 +53,8 @@ int16_t enc_val = 0;
 
 SoftwareSerial gsmSerial(GSM_SERIAL_RX, GSM_SERIAL_TX);
 SoftwareSerial mp3Serial(MP3_SERIAL_RX, MP3_SERIAL_TX);
-//DFPlayerMini_Fast mp3Player;
-DFRobotDFPlayerMini mp3Player;
+DFPlayerMini_Fast mp3Player;
+// DFRobotDFPlayerMini mp3Player;
 SimpleTimer timer;
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 

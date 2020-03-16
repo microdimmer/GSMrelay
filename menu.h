@@ -5,12 +5,12 @@ const char gsm[] PROGMEM = "\x01\x03\x1F\x11\x1F\x15\x1B\x1F"; //{0x01, 0x03, 0x
 const char memory[] PROGMEM = "\x0A\x1F\x0A\x1F\x0A\x1F\x0A\x00"; //{0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x1F, 0x0A, 0x00};
 const char ruble[] PROGMEM = "\x0E\x09\x09\x1E\x08\x1C\x08\x08"; //{ 0x0E,  0x09,  0x09,  0x1E,  0x08,  0x1C,  0x08, 0x08};
 
-const char MENU_ON_OFF[] PROGMEM = {"B\272\273/B\303k\273"}; //Вкл/Выкл
-const char MENU_TEMP[] PROGMEM = {"\251c\277.\277e\274\276"}; //Уст.темп       //TODO
+const char MENU_ON_OFF[] PROGMEM = {"BK\247/B\256K\247"}; //ВКЛ/ВЫКЛ
+const char MENU_TEMP[] PROGMEM = {"\251CTAHOBKA TEM\250"}; //УСТАНОВКА ТЕМП       //TODO
 //const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
 //const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
-const char MENU_INFO[] PROGMEM = {"\245\275\344o"}; //Инфо
-const char MENU_EXIT[] PROGMEM = {"B\303xo\343"}; //Выход
+const char MENU_INFO[] PROGMEM = {"\245H\252O"}; //ИНФО
+const char MENU_EXIT[] PROGMEM = {"B\256XO\340"}; //ВЫХОД
 
 const char MENU_TEMP_SET_HOME[] PROGMEM = {"\251c\277.\277 \263o\267\343"}; //Уст.т возд
 const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"\251c\277.\277 pa\343"}; //Уст.т рад
