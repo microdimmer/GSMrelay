@@ -12,10 +12,10 @@ const char MENU_TEMP[] PROGMEM = {"\251CTAHOBKA TEM\250"}; //УСТАНОВКА 
 const char MENU_INFO[] PROGMEM = {"\245H\252O"}; //ИНФО
 const char MENU_EXIT[] PROGMEM = {"B\256XO\340"}; //ВЫХОД
 
-const char MENU_TEMP_SET_HOME[] PROGMEM = {"\251c\277.\277 \263o\267\343"}; //Уст.т возд
-const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"\251c\277.\277 pa\343"}; //Уст.т рад
-const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"\241\270c\277 \263o\267\343."}; //Гист возд.
-const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"\241\270c\277 pa\343."}; //Гист рад.
+const char MENU_TEMP_SET_HOME[] PROGMEM = {"TEM\250 BO\244\340\251XA \x06"}; //ТЕМП ВОЗДУХА  \x06
+const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"TEM\250 PA\340\245AT. \x07"}; //ТЕМП РАДИАТ. \x07
+const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"\241\245CT BO\244\340\251XA \x06"}; //ГИСТ ВОЗДУХА \x06
+const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"\241\245CT PA\340\245AT. \x07"}; //ГИСТ РАДИАТ. \x07
 
 const char MENU_INFO_HOME[] PROGMEM = {"\340o\274      %+03d°C"}; //Дом
 const char MENU_INFO_HEATER[] PROGMEM = {"Pa\343\270a\277op %+03d°C"}; //Радиатор
@@ -32,8 +32,8 @@ LiquidLine main_line5(1, 1, MENU_EXIT);
 LiquidScreen main_screen1(main_line1, main_line2);
 LiquidScreen main_screen3(main_line4, main_line5);
 LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME);
-LiquidLine temp_line3(1, 1, MENU_TEMP_SET_RADIATOR);
-LiquidLine temp_line2(1, 0, MENU_TEMP_HOME_HYSTERESIS);
+LiquidLine temp_line2(1, 1, MENU_TEMP_SET_RADIATOR);
+LiquidLine temp_line3(1, 0, MENU_TEMP_HOME_HYSTERESIS);
 LiquidLine temp_line4(1, 1, MENU_TEMP_RADIATOR_HYSTERESIS);
 LiquidLine temp_line5(1, 0, MENU_EXIT);
 //
