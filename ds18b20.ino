@@ -2,7 +2,6 @@ void initDS() //init temp sensors
 {
   uint8_t i = 0;
   uint8_t resolution = 0;
-  //byte resolution;
   while (ds.search(DSaddr[i]))
   {
     if (i > 1)
@@ -66,6 +65,6 @@ void readDSresponse() //read response from sensor
     //temp[i] = ((int)ds.read() | (((int)ds.read()) << 8)) * 0.0625 + 0.03125; //first and second byte read, convert to int, TODO add CRC check
   }
 
-  if (currentMenu == 0) //if main screen is displayed,
+  if (currentMenu == 0 || currentMenu >= 4) //if main screen or set params is displayed,
     updateMainScreenFlag = true;
 }

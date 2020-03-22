@@ -61,8 +61,10 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 char GSMstring[64] = {'\0'}; //GSM read string buffer
 char string_buff[8] = {'\0'}; //string buffer, used for showing info on display
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
-// int8_t t_heater_set = 0;
-// int8_t t_home_set = 0;
+int8_t t_home_set = 25;
+int8_t t_heater_set = 0;
+int8_t t_home_hysteresis_set = 2;
+int8_t t_heater_hysteresis_set = 2;
 uint8_t signalStrength = 0;
 bool GSMonAirFlag = false; //answer call flag
 bool GSMwaitReqFlag = false; // waiting request command flag
@@ -83,7 +85,7 @@ bool GSMinitOK = false;
 bool timeSyncOK = false;
 bool signalSyncOK = false;
 bool balanceSyncOK = false;
-uint8_t currentMenu = 0; //0 - homepage, 1 - main menu, 2 - info menu, 3 - temp menu
+uint8_t currentMenu = 0; //0 - homepage, 1 - main menu, 2 - info menu, 3 - temp menu, 4 - set params
 
 #include "menu.h"
 #include "debug.h"

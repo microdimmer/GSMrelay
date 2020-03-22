@@ -22,11 +22,11 @@ void initMenu() {
   main_line4.attach_function(1, go_info_menu);
   main_line5.attach_function(1, go_main_screen);
 
- temp_line1.attach_function(1, func);
- temp_line2.attach_function(1, func);
- temp_line3.attach_function(1, func);
- temp_line4.attach_function(1, func);
- temp_line5.attach_function(1, go_main_menu);
+  temp_line1.attach_function(1, setHomeTemp);
+  temp_line2.attach_function(1, setHeaterTemp);
+  temp_line3.attach_function(1, setHomeHysteresis);
+  temp_line4.attach_function(1, setHeaterHysteresis);
+  temp_line5.attach_function(1, go_main_menu);
   
   info_line1.attach_function(1, func);
   info_line2.attach_function(1, func);
@@ -58,11 +58,40 @@ void drawMainSreen() {
 
   if (!updateMainScreenFlag)
     return;
-  if (clearMainSreenFlag)
-  {
+  if (clearMainSreenFlag) {
     lcd.clear();
     clearMainSreenFlag = false;
   }
+
+  if (currentMenu >= 4) { //if temp set mode
+    static bool blinking = false;
+    blinking ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
+    switch (currentMenu) {
+    case 4:
+      sprintf(two_digits_buff, string_buff, t_home_set);
+      lcd.setCursor(13, 0);
+      break;
+    case 5:
+      sprintf(two_digits_buff, string_buff, t_heater_set);
+      lcd.setCursor(13, 1);
+      break;
+    case 6:
+      sprintf(two_digits_buff, string_buff, t_home_hysteresis_set);
+      lcd.setCursor(13, 0);
+      break;
+    case 7:
+      sprintf(two_digits_buff, string_buff, t_heater_hysteresis_set);
+      lcd.setCursor(13, 1);
+      break;
+    default:
+      break;
+    }
+    lcd.print(two_digits_buff);
+    updateMainScreenFlag = false;
+    blinking = !blinking;
+    return;
+  }
+  
   currentMenu = 0;
   updateMainScreenFlag = false;
 
@@ -72,7 +101,7 @@ void drawMainSreen() {
   
   //time show
   lcd.setCursor(5, 0);
-  sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), hour());
+  sprintf(two_digits_buff, strcpy_P(string_buff, FORMAT_DIGITS_2), hour());
   lcd.print(two_digits_buff);
   ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
   sprintf(two_digits_buff, string_buff, minute());
@@ -82,10 +111,10 @@ void drawMainSreen() {
     lcd.setCursor(12, i);
     lcd.write(6+i); //6 home sign, 7 heater sign
     if (temp[i]==-99) {
-      lcd.print(strcpy_P(two_digits_buff, PSTR("--"))); //temp is invalid show --
+      lcd.print(strcpy_P(two_digits_buff, EMPTY_NUM)); //temp is invalid show --
     }
     else { 
-      sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%+03d")), temp[i]);
+      sprintf(two_digits_buff, strcpy_P(string_buff, FORMAT_DIGITS_3_SP), temp[i]);
       lcd.print(two_digits_buff);
     }
     lcd.write(5); //celsius
@@ -99,10 +128,10 @@ void drawMainSreen() {
   }
   lcd.setCursor(1, 1);
   if (balance==-32768) {
-    lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
+    lcd.print(strcpy_P(two_digits_buff, EMPTY_NUM));
   }
   else {
-    sprintf(two_digits_buff, strcpy_P(string_buff, PSTR("%02d")), balance);
+    sprintf(two_digits_buff, strcpy_P(string_buff, FORMAT_DIGITS_2), balance);
     lcd.print(two_digits_buff);
   }
   lcd.write(3); // russian currency sign
@@ -110,7 +139,7 @@ void drawMainSreen() {
 
   lcd.write(4); //GSM sign
   if (signalStrength==0) {
-    lcd.print(strcpy_P(two_digits_buff, PSTR("--")));
+    lcd.print(strcpy_P(two_digits_buff, EMPTY_NUM));
   }
   else {  
     sprintf(two_digits_buff, string_buff, signalStrength);
@@ -146,11 +175,26 @@ void func() // Blank function, it is attached to the lines so that they become f
   PRINTLNF("hello!");
 }
 
-void go_switch_relay()
-{
+void setHomeTemp() {  
+  currentMenu == 4 ? currentMenu = 3 :  currentMenu = 4;
+}
+
+void setHeaterTemp() {  
+  currentMenu == 5 ? currentMenu = 3 : currentMenu = 5;
+}
+
+void setHomeHysteresis() { 
+  currentMenu == 6 ? currentMenu = 3 :  currentMenu = 6;
+}
+
+void setHeaterHysteresis() { 
+  currentMenu == 7 ? currentMenu = 3 :  currentMenu = 7;
+}
+
+void go_switch_relay() {
   relayFlag = !relayFlag;
   digitalWrite(RELAY_PIN, relayFlag);
-  PRINTLNF("relay switch!");
+  PRINTLNF("relay switch");
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
@@ -158,9 +202,8 @@ void go_switch_relay()
   currentMenu = 0;
 }
 
-void go_info_menu()
-{
-  PRINTLNF("changing to info menu!");
+void go_info_menu() {
+  PRINTLNF("to info menu");
   menu_system.change_menu(info_menu);
   menu_system.change_screen(1);
   menu_system.switch_focus();
@@ -168,34 +211,30 @@ void go_info_menu()
 }
 
 void go_temp_menu() {
- PRINTLNF("changing to temp menu!");
+ PRINTLNF("to temp menu");
  menu_system.change_menu(temp_menu);
  menu_system.change_screen(1);
  menu_system.switch_focus();
  currentMenu = 3;
 }
 
-void go_main_menu()
-{
-  PRINTLNF("changing to main menu!");
+void go_main_menu() {
+  PRINTLNF("to main menu");
   menu_system.switch_focus();
   menu_system.change_menu(main_menu);
   currentMenu = 1;
 }
 
-void go_main_screen()
-{
-  PRINTLNF("changing to main screen!");
+void go_main_screen() {
+  PRINTLNF("to main screen");
   menu_system.switch_focus();
   updateMainScreenFlag = true;
   clearMainSreenFlag = true;
   currentMenu = 0;
 }
 
-void loadingAnimation(uint32_t a_delay, uint8_t count = 1) //loading animation TODO
-{
-  for (uint8_t i = 0; i < count; i++)
-  {
+void loadingAnimation(uint32_t a_delay, uint8_t count = 1) {//loading animation TODO
+  for (uint8_t i = 0; i < count; i++) {
     PRINTINFO(".");
     static char string_buff[6] = {0}; //TODO del static
     lcd.setCursor(11, 1);

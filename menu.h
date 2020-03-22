@@ -8,19 +8,28 @@ const char ruble[] PROGMEM = "\x0E\x09\x09\x1E\x08\x1C\x08\x08"; //{ 0x0E,  0x09
 const char MENU_ON_OFF[] PROGMEM = {"BK\247/B\256K\247"}; //ВКЛ/ВЫКЛ
 const char MENU_TEMP[] PROGMEM = {"\251CTAHOBKA TEM\250"}; //УСТАНОВКА ТЕМП       //TODO
 //const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
-//const char MENU_PREFS[] PROGMEM = {"Настройки"};     //TODO
 const char MENU_INFO[] PROGMEM = {"\245H\252O"}; //ИНФО
 const char MENU_EXIT[] PROGMEM = {"B\256XO\340"}; //ВЫХОД
 
-const char MENU_TEMP_SET_HOME[] PROGMEM = {"TEM\250 BO\244\340\251XA \x06"}; //ТЕМП ВОЗДУХА  \x06
-const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"TEM\250 PA\340\245AT. \x07"}; //ТЕМП РАДИАТ. \x07
-const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"\241\245CT BO\244\340\251XA \x06"}; //ГИСТ ВОЗДУХА \x06
-const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"\241\245CT PA\340\245AT. \x07"}; //ГИСТ РАДИАТ. \x07
+const char MENU_TEMP_SET_HOME[] PROGMEM = {"TEM\250 BO\244\340  +%02d\x05"}; //ТЕМП ВОЗД  \x06
+const char MENU_TEMP_SET_RADIATOR[] PROGMEM = {"TEM\250 PA\340   +%02d\x05"}; //ТЕМП РАД \x07
+const char MENU_TEMP_HOME_HYSTERESIS[] PROGMEM = {"\241\245CT BO\244\340   %02d\x05"}; //ГИСТ ВОЗД \x06
+const char MENU_TEMP_RADIATOR_HYSTERESIS[] PROGMEM = {"\241\245CT PA\340    %02d\x05"}; //ГИСТ РАД \x07
 
 const char MENU_INFO_HOME[] PROGMEM = {"\340o\274      %+03d°C"}; //Дом
 const char MENU_INFO_HEATER[] PROGMEM = {"Pa\343\270a\277op %+03d°C"}; //Радиатор
 const char MENU_INFO_GSM[] PROGMEM = {"GSM c\270\264\275a\273  %02d%%"}; //GSM сигнал
 //const char MENU_INFO_RAM[] PROGMEM = {"Память %03d%b"};
+
+const char CLEAR_LINE[] PROGMEM = {"  "};
+const char FORMAT_DIGITS_2[] PROGMEM = {"%02d"};
+const char FORMAT_DIGITS_3_SP[] PROGMEM = {"%+03d"};
+const char EMPTY_NUM[] PROGMEM = {"--"};
+const char CUSD[] PROGMEM = {"+CUSD:"};
+const char CCLK[] PROGMEM = {"+CCLK:"};
+const char CSQ[] PROGMEM = {"+CSQ:"};
+const char DELIMETERS[] PROGMEM = {"/,:+"};
+
 
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
 LiquidLine main_line2(1, 1, MENU_TEMP);
@@ -31,10 +40,10 @@ LiquidLine main_line5(1, 1, MENU_EXIT);
 //LiquidScreen main_screen2(main_line3, main_line4);
 LiquidScreen main_screen1(main_line1, main_line2);
 LiquidScreen main_screen3(main_line4, main_line5);
-LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME);
-LiquidLine temp_line2(1, 1, MENU_TEMP_SET_RADIATOR);
-LiquidLine temp_line3(1, 0, MENU_TEMP_HOME_HYSTERESIS);
-LiquidLine temp_line4(1, 1, MENU_TEMP_RADIATOR_HYSTERESIS);
+LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME, t_home_set);
+LiquidLine temp_line2(1, 1, MENU_TEMP_SET_RADIATOR, t_heater_set);
+LiquidLine temp_line3(1, 0, MENU_TEMP_HOME_HYSTERESIS,t_home_hysteresis_set);
+LiquidLine temp_line4(1, 1, MENU_TEMP_RADIATOR_HYSTERESIS,t_heater_hysteresis_set);
 LiquidLine temp_line5(1, 0, MENU_EXIT);
 //
 LiquidScreen temp_screen1(temp_line1, temp_line2);
