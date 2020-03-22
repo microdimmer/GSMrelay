@@ -12,6 +12,7 @@ void initGSM() {//TODO
   for (uint8_t i = 0; i < 4; i++)  {
     gsmSerial.println(F("AT")); 	
     loadingAnimation(500);
+    gsmSerial.println(F("ATE0")); //echo off
     if (gsmSerial.find(strcpy_P(string_buff, PSTR("OK")))) {//copy PROGMEM to buff and find answer in GSM serial
       PRINTLNF("AT ok");
       GSMinitOK = true;
@@ -20,8 +21,7 @@ void initGSM() {//TODO
     }
   }
   #endif
-
-  gsmSerial.begin(115200);
+  
   PRINTINFO("switching on GSM");
   pinMode(GSM_PIN, OUTPUT);
   digitalWrite(GSM_PIN, LOW);
@@ -30,6 +30,7 @@ void initGSM() {//TODO
 
   PRINTLNF("");
   PRINTLNF("trying to set 9600");
+  gsmSerial.begin(115200);
   for (size_t i = 0; i < 4; i++) {
     gsmSerial.println(F("AT+IPR=9600")); //trying to set 9600
     delay(50);
@@ -37,25 +38,25 @@ void initGSM() {//TODO
   gsmSerial.begin(9600);
   
   cleanSerialGSM();
-  gsmSerial.println(F("AT+CPAS"));
   PRINTINFO("initialize GSM");  
   for (uint8_t i = 0; i < 20; i++) {
-    // gsmSerial.println(F("AT+CPAS"));
+    gsmSerial.println(F("AT+CPAS"));
     loadingAnimation(500);// display loading animation
-    gsmSerial.readBytesUntil('\n', GSMstring, sizeof(GSMstring));
-    if (strstr_P(GSMstring, PSTR("+CPAS:0")) != NULL) {
-      PRINTLNF("AT ok");
-      GSMinitOK = true;
-      break;
-    }
-    else {
-      PRINTLN("GSMstring=",GSMstring);
-    }
-    // if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) {
+    gsmSerial.println(F("ATE0")); //echo off
+    // gsmSerial.readBytesUntil('\n', GSMstring, sizeof(GSMstring));
+    // if (strstr_P(GSMstring, PSTR("+CPAS:0")) != NULL) {
     //   PRINTLNF("AT ok");
     //   GSMinitOK = true;
     //   break;
     // }
+    // else {
+    //   PRINTLN("GSMstring=",GSMstring);
+    // }
+    if (gsmSerial.find(strcpy_P(string_buff, PSTR("+CPAS:0")))) {
+      PRINTLNF("AT ok");
+      GSMinitOK = true;
+      break;
+    }
   }
 
   if (!GSMinitOK) {

@@ -4,7 +4,7 @@
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
 
-#define DEBUGGING
+//#define DEBUGGING
 
 const char PROG_VERSION = '2';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay

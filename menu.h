@@ -6,8 +6,8 @@ const char memory[] PROGMEM = "\x0A\x1F\x0A\x1F\x0A\x1F\x0A\x00"; //{0x0A, 0x1F,
 const char ruble[] PROGMEM = "\x0E\x09\x09\x1E\x08\x1C\x08\x08"; //{ 0x0E,  0x09,  0x09,  0x1E,  0x08,  0x1C,  0x08, 0x08};
 
 const char MENU_ON_OFF[] PROGMEM = {"BK\247/B\256K\247"}; //ВКЛ/ВЫКЛ
+const char MENU_THERMOSTAT[] PROGMEM = {"BK\247 TEPMOCTAT"}; //ВКЛ ТЕРМОСТАТ
 const char MENU_TEMP[] PROGMEM = {"\251CTAHOBKA TEM\250"}; //УСТАНОВКА ТЕМП       //TODO
-//const char MENU_SCHEDULE[] PROGMEM = {"Расписание"}; //TODO
 const char MENU_INFO[] PROGMEM = {"\245H\252O"}; //ИНФО
 const char MENU_EXIT[] PROGMEM = {"B\256XO\340"}; //ВЫХОД
 
@@ -32,14 +32,13 @@ const char DELIMETERS[] PROGMEM = {"/,:+"};
 
 
 LiquidLine main_line1(1, 0, MENU_ON_OFF);
-LiquidLine main_line2(1, 1, MENU_TEMP);
-//LiquidLine main_line3(1, 0, MENU_SCHEDULE);
-LiquidLine main_line4(1, 0, MENU_INFO);
-LiquidLine main_line5(1, 1, MENU_EXIT);
-//LiquidScreen main_screen1(main_line1, main_line2);
-//LiquidScreen main_screen2(main_line3, main_line4);
+LiquidLine main_line2(1, 1, MENU_THERMOSTAT);
+LiquidLine main_line3(1, 0, MENU_TEMP);
+LiquidLine main_line4(1, 1, MENU_INFO);
+LiquidLine main_line5(1, 0, MENU_EXIT);
 LiquidScreen main_screen1(main_line1, main_line2);
-LiquidScreen main_screen3(main_line4, main_line5);
+LiquidScreen main_screen2(main_line3, main_line4);
+LiquidScreen main_screen3(main_line5);
 LiquidLine temp_line1(1, 0, MENU_TEMP_SET_HOME, t_home_set);
 LiquidLine temp_line2(1, 1, MENU_TEMP_SET_RADIATOR, t_heater_set);
 LiquidLine temp_line3(1, 0, MENU_TEMP_HOME_HYSTERESIS,t_home_hysteresis_set);
@@ -57,7 +56,7 @@ LiquidLine info_line4(1, 1, MENU_EXIT);
 LiquidScreen info_screen1(info_line1, info_line2);
 LiquidScreen info_screen2(info_line3, info_line4);
 // LiquidScreen info_screen3(info_line5);
-LiquidMenu main_menu(lcd, main_screen1, main_screen3, 1);
+LiquidMenu main_menu(lcd, main_screen1, main_screen2, main_screen3, 1);
 LiquidMenu temp_menu(lcd, temp_screen1, temp_screen2, temp_screen3, 1);
 LiquidMenu info_menu(lcd, info_screen1, info_screen2, 1);
 // LiquidSystem menu_system(main_menu, info_menu, 1);
