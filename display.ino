@@ -1,5 +1,6 @@
 void initMenu() {
   lcd.init(); //init display
+  lcd.createChar(2, thermostat);
   lcd.createChar(3, ruble);
   lcd.createChar(4, gsm);
   lcd.createChar(5, celsius);
@@ -16,23 +17,23 @@ void initMenu() {
   lcd.print(F("\267a\264py\267\272a     ")); //загрузка
   
   menu_system.set_focusPosition(Position::LEFT); //init menu system
-  main_line1.attach_function(1, go_switch_relay);
-  main_line2.attach_function(1, go_temp_menu);
-  main_line3.attach_function(1, func);
-  main_line4.attach_function(1, go_info_menu);
-  main_line5.attach_function(1, go_main_screen);
+  main_line1.attach_function(1, setWorkFlag);
+  main_line2.attach_function(1, setThermostatFlag);
+  main_line3.attach_function(1, goTempMenu);
+  main_line4.attach_function(1, goInfoMenu);
+  main_line5.attach_function(1, goHomeScreen);
 
   temp_line1.attach_function(1, setHomeTemp);
   temp_line2.attach_function(1, setHeaterTemp);
   temp_line3.attach_function(1, setHomeHysteresis);
   temp_line4.attach_function(1, setHeaterHysteresis);
-  temp_line5.attach_function(1, go_main_menu);
+  temp_line5.attach_function(1, goMainMenu);
   
   info_line1.attach_function(1, func);
   info_line2.attach_function(1, func);
   info_line3.attach_function(1, func);
-  info_line4.attach_function(1, go_main_menu);
-  // info_line5.attach_function(1, go_main_menu);
+  info_line4.attach_function(1, goMainMenu);
+  // info_line5.attach_function(1, goMainMenu);
 
   main_line1.set_asProgmem(1); //set PROGMEM menu lines
   main_line2.set_asProgmem(1);
@@ -97,7 +98,11 @@ void drawMainSreen() {
 
   //relay state show
   lcd.setCursor(0, 0);
-  relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
+  workFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
+  // relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
+  if (thermostatFlag) {
+    lcd.print(2); 
+  }
   
   //time show
   lcd.setCursor(5, 0);
@@ -148,7 +153,6 @@ void drawMainSreen() {
   lcd.write('%');
 }
 
-
 void backlightOFF() {
   if (backlightFlag) {
     PRINTLNF("backlight off");
@@ -175,6 +179,16 @@ void func() // Blank function, it is attached to the lines so that they become f
   PRINTLNF("hello!");
 }
 
+void setThermostatFlag() {
+  thermostatFlag ^= 1; //invert flag
+  PRINTLNF("switch thermostat");
+  menu_system.switch_focus();
+  menu_system.switch_focus();
+  updateMainScreenFlag = true;
+  clearMainSreenFlag = true;
+  currentMenu = 0;
+}
+
 void setHomeTemp() {  
   currentMenu == 4 ? currentMenu = 3 :  currentMenu = 4;
 }
@@ -191,10 +205,11 @@ void setHeaterHysteresis() {
   currentMenu == 7 ? currentMenu = 3 :  currentMenu = 7;
 }
 
-void go_switch_relay() {
-  relayFlag = !relayFlag;
-  digitalWrite(RELAY_PIN, relayFlag);
-  PRINTLNF("relay switch");
+void setWorkFlag() {
+  // relayFlag = !relayFlag;
+  // digitalWrite(RELAY_PIN, relayFlag);
+  // PRINTLNF("relay switch");
+  workFlag ^= 1;
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
@@ -202,7 +217,7 @@ void go_switch_relay() {
   currentMenu = 0;
 }
 
-void go_info_menu() {
+void goInfoMenu() {
   PRINTLNF("to info menu");
   menu_system.change_menu(info_menu);
   menu_system.change_screen(1);
@@ -210,7 +225,7 @@ void go_info_menu() {
   currentMenu = 2;
 }
 
-void go_temp_menu() {
+void goTempMenu() {
  PRINTLNF("to temp menu");
  menu_system.change_menu(temp_menu);
  menu_system.change_screen(1);
@@ -218,15 +233,15 @@ void go_temp_menu() {
  currentMenu = 3;
 }
 
-void go_main_menu() {
+void goMainMenu() {
   PRINTLNF("to main menu");
   menu_system.switch_focus();
   menu_system.change_menu(main_menu);
   currentMenu = 1;
 }
 
-void go_main_screen() {
-  PRINTLNF("to main screen");
+void goHomeScreen() {
+  PRINTLNF("to home screen");
   menu_system.switch_focus();
   updateMainScreenFlag = true;
   clearMainSreenFlag = true;

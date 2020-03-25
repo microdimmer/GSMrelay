@@ -4,9 +4,9 @@
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
 
-//#define DEBUGGING
+#define DEBUGGING
 
-const char PROG_VERSION = '2';
+const char PROG_VERSION = '3';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
 const uint8_t GSM_PIN = 9;                                                                              //pin for GSM
 const uint8_t TEMP_SENSOR_PIN = 12;                                                                     //pin for DS18B20
@@ -76,7 +76,9 @@ int16_t backlightTimerID = 0;
 uint16_t memoryFree = 0;
 int16_t balance = -32768; //min uint
 CircularBuffer<uint8_t,16> audioQueue;     // audio sequence size, can play five files continuously CircularBuffer<uint8_t,6> audioQueue;
-bool relayFlag = false; 
+bool workFlag = false;
+bool relayFlag = false;
+bool thermostatFlag = false; 
 bool backlightFlag = true;
 bool updateMainScreenFlag = true;
 bool clearMainSreenFlag = false;
@@ -104,9 +106,9 @@ void setup()
   initMP3(); //mp3 serial port by default is not listening
   initGSM(); //init GSM module, the last intialized port is listening
   initDS();  //init DS temp modules
-  requestTemp();  //request temp
+  requestTempUpdateScreen();  //request temp
 
-  timer.setInterval(1000, requestTemp); //request temp once a second and update screen
+  timer.setInterval(1000, requestTempUpdateScreen); //request temp once a second and update screen
   backlightTimerID = timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   
   if (!GSMinitOK) {

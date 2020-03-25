@@ -1,16 +1,12 @@
-void initDS() //init temp sensors
-{
+void initDS() {//init temp sensors
   uint8_t i = 0;
   uint8_t resolution = 0;
-  while (ds.search(DSaddr[i]))
-  {
-    if (i > 1)
-    {
+  while (ds.search(DSaddr[i])) {
+    if (i > 1) {
       PRINTLNF("more than 2 devices, unable to load them all");
       break;
     }
-    if (OneWire::crc8(DSaddr[i], 7) != DSaddr[i][7])
-    {
+    if (OneWire::crc8(DSaddr[i], 7) != DSaddr[i][7]) {
       PRINTLNF("CRC of temp sensor is not valid!");
       break;
     }
@@ -18,13 +14,11 @@ void initDS() //init temp sensors
     ds.reset(); //read resolution
     ds.select(DSaddr[i]);
     ds.write(0xBE); // Read Scratchpad
-    for (uint8_t j = 0; j < 5; j++)
-    {
+    for (uint8_t j = 0; j < 5; j++) {
       resolution = ds.read(); // we need fifth byte, (resolution) 7F=12bits 5F=11bits 3F=10bits 1F=9bits
     }
     PRINTLNHEX("DS18B20 resolution (0x7F max)=", resolution);
-    if (resolution != 0x7f)
-    {
+    if (resolution != 0x7f) {
       ds.reset();
       ds.select(DSaddr[i]);
       ds.write(0x4E);       // Write scratchpad command
@@ -39,8 +33,7 @@ void initDS() //init temp sensors
   }
 }
 
-void requestTemp() //send request to temp sensors
-{
+void requestTempUpdateScreen() {//send request to temp sensors
   ds.reset();
   ds.write(0xCC, 0); // skip address (broadcast to all devices)
   ds.write(0x44, 0); // start conversion (start temp measurement)
@@ -48,11 +41,9 @@ void requestTemp() //send request to temp sensors
   timer.setTimeout(200L, readDSresponse);
 }
 
-void readDSresponse() //read response from sensor
-{
+void readDSresponse() {//read response from sensor
   static uint8_t buf[9];
-  for (uint8_t i = 0; i < 2; i++)
-  {
+  for (uint8_t i = 0; i < 2; i++) {
     ds.reset();
     ds.select(DSaddr[i]);
     ds.write(0xBE, 0); // read data from DS

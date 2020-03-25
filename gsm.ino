@@ -232,13 +232,13 @@ void readStringGSM() {//read data from GSM module
     }
     else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !GSMonAirFlag) { //if received phone number calling data
       PRINTLNF("received calling ID");
-      if (checkNumber(GSMstring)) //check phone number +CLCC:
-      {
+      if (checkNumber(GSMstring)) {//check phone number +CLCC:
         GSMonAirFlag = true;
   
-        relayFlag = !relayFlag;
-        digitalWrite(RELAY_PIN, relayFlag);
-        PRINTLNF("relay switch!");
+        workFlag = !workFlag;
+        // relayFlag = !relayFlag;
+        // digitalWrite(RELAY_PIN, relayFlag);
+        PRINTLNF("work switch");
         cleanSerialGSM();
         gsmSerial.println(F("ATA"));                       //answer call
         PRINTLNF("answer call");

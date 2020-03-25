@@ -1,17 +1,13 @@
-void initMP3()
-{
+void initMP3() {
   mp3Serial.begin(9600);
   mp3Player.begin(mp3Serial);
-  // if (mp3Player.begin(mp3Serial)) { //Use softwareSerial to communicate with mp3.
-  //   PRINTLNF("DFPlayer Mini init OK");
-  // }
+  PRINTLNF("trying init DFPlayer");
   mp3Player.volume(30); //set volume value. From 0 to 30
   mp3Player.pause();
 }
 
-void playGSM()
-{
-  relayFlag ? addAudio(34) : addAudio(35); //play switch on/off
+void playGSM() {
+  workFlag ? addAudio(34) : addAudio(35); //play switch on/off
   playTemp(0); //play temp home
   playTemp(1); //play temp heater
   playBalance();
