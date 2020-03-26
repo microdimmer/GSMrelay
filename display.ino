@@ -1,6 +1,6 @@
 void initMenu() {
   lcd.init(); //init display
-  lcd.createChar(2, thermostat);
+  lcd.createChar(0, thermostat);
   lcd.createChar(3, ruble);
   lcd.createChar(4, gsm);
   lcd.createChar(5, celsius);
@@ -101,11 +101,11 @@ void drawMainSreen() {
   workFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
   // relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
   if (thermostatFlag) {
-    lcd.print(2); 
+    lcd.write(0); 
   }
   
   //time show
-  lcd.setCursor(5, 0);
+  lcd.setCursor(6, 0);
   sprintf(two_digits_buff, strcpy_P(string_buff, FORMAT_DIGITS_2), hour());
   lcd.print(two_digits_buff);
   ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
@@ -140,8 +140,8 @@ void drawMainSreen() {
     lcd.print(two_digits_buff);
   }
   lcd.write(3); // russian currency sign
-  lcd.setCursor(6, 1);
-
+  
+  lcd.setCursor(7, 1);
   lcd.write(4); //GSM sign
   if (signalStrength==0) {
     lcd.print(strcpy_P(two_digits_buff, EMPTY_NUM));
