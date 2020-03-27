@@ -14,16 +14,16 @@ void readEncoder() {
       PRINTLNF("enc ++");
 
       if (currentMenu ==4 ) { // set home temp
-        t_home_set++;
+        temp_set[0]++;
       }
       else if (currentMenu ==5 ) { // set heater temp
-        t_heater_set++;
+        temp_set[1]++;
       }
       else if (currentMenu ==6 ) { // set home temp hysteresis
-        t_home_hysteresis_set++;
+        temp_set_hysteresis[0]++;
       }
       else if (currentMenu ==7 ) { // set set heater temp hysteresis
-        t_heater_hysteresis_set++;
+        temp_set_hysteresis[1]++;
       }
       else if (!menu_system.switch_focus()) { // end of menu lines
         menu_system++;
@@ -33,16 +33,16 @@ void readEncoder() {
     else {
       PRINTLNF("enc --");
      if (currentMenu ==4 ) { // set home temp
-        t_home_set--;
+        temp_set[0]--;
       }
       else if (currentMenu ==5 ) { // set heater temp
-        t_heater_set--;
+        temp_set[1]--;
       }
       else if (currentMenu ==6 ) { // set home temp hysteresis
-        t_home_hysteresis_set--;
+        temp_set_hysteresis[0]--;
       }
       else if (currentMenu ==7 ) { // set set heater temp hysteresis
-        t_heater_hysteresis_set--;
+        temp_set_hysteresis[1]--;
       }
       else if (!menu_system.switch_focus(false)) { // end of menu lines
         menu_system--;
@@ -50,16 +50,15 @@ void readEncoder() {
       }
     }
     last_val = enc_val;
-    PRINTLNF("_");
+    PRINTLNF("_"); // ^_^
   }
 }
 
-void readButton()
-{
+void readButton() {
   encoder.service();
   button = encoder.getButton();
   if (button != ClickEncoder::Open) {
-    PRINTLNF("button clicked");
+    PRINTLNF("button click");
     backlightON();
     if (currentMenu == 0) { //homepagego to main menu
       menu_system.change_menu(main_menu);

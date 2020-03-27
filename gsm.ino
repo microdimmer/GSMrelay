@@ -11,7 +11,7 @@ void initGSM() {//TODO
   PRINTINFO("already initialized?");
   for (uint8_t i = 0; i < 4; i++)  {
     gsmSerial.println(F("AT")); 	
-    loadingAnimation(500);
+    loadingAnimation();
     gsmSerial.println(F("ATE0")); //echo off
     if (gsmSerial.find(strcpy_P(string_buff, PSTR("OK")))) {//copy PROGMEM to buff and find answer in GSM serial
       PRINTLNF("AT ok");
@@ -22,10 +22,10 @@ void initGSM() {//TODO
   }
   #endif
   
-  PRINTINFO("switching on GSM");
+  PRINTINFO("switching GSM");
   pinMode(GSM_PIN, OUTPUT);
   digitalWrite(GSM_PIN, LOW);
-  loadingAnimation(500,4); //wait 2 sec
+  loadingAnimation(4); //wait 2 sec
   digitalWrite(GSM_PIN, HIGH);
 
   PRINTLNF("");
@@ -41,7 +41,7 @@ void initGSM() {//TODO
   PRINTINFO("initialize GSM");  
   for (uint8_t i = 0; i < 20; i++) {
     gsmSerial.println(F("AT+CPAS"));
-    loadingAnimation(500);// display loading animation
+    loadingAnimation();// display loading animation
     gsmSerial.println(F("ATE0")); //echo off
     // gsmSerial.readBytesUntil('\n', GSMstring, sizeof(GSMstring));
     // if (strstr_P(GSMstring, PSTR("+CPAS:0")) != NULL) {
@@ -60,21 +60,21 @@ void initGSM() {//TODO
   }
 
   if (!GSMinitOK) {
-    PRINTINFO("GSM init failed!");
+    PRINTINFO("GSM init error");
     cleanSerialGSM();
     return;
   }
 
   GSMinitOK = false;
   gsmSerial.println(F("ATE0")); //echo off
-  loadingAnimation(500);
+  loadingAnimation();
   gsmSerial.println(F("AT+CSCS=\"GSM\"")); // "GSM","HEX","PCCP936","UCS2
-  PRINTLNF("waiting for SIM ready");
-  loadingAnimation(500,10); //5 sec waiting if init first time need
+  PRINTLNF("waiting for SIM");
+  loadingAnimation(10); //5 sec waiting if init first time need
   cleanSerialGSM();
   for (uint8_t i = 0; i < 4; i++)  {
     gsmSerial.println(F("AT+CPIN?")); // Query SIM PIN status
-    loadingAnimation(500, 4); //2 sec
+    loadingAnimation(4); //2 sec
     gsmSerial.readBytesUntil('\n', GSMstring, sizeof(GSMstring));
     if (strstr_P(GSMstring, PSTR("+CPIN:READY")) != NULL) { // SIM ok
       PRINTLNF("SIM ok");
@@ -94,7 +94,7 @@ void initGSM() {//TODO
     PRINTLNF("init GSM ok");
   }
   else {
-    PRINTINFO("GSM init failed!");
+    PRINTINFO("GSM init error");
   }
   
   cleanSerialGSM();
@@ -161,7 +161,7 @@ void readUntilOK(void* syncOKflag) {//wait and read data response TODODOTODOTODO
     GSMwaitReqFlag = false;
     return;
   }
-  PRINTINFO("waiting");
+  PRINTINFO("wait");
   timer.setTimeout(readResponseTimeout,  readUntilOK, syncOKflag );
   readResponseCounter++;
 }
@@ -173,7 +173,7 @@ void waitAndReadUntilOK(const bool &syncOK) { //wait and read data response
       //  PRINTLNF(".syncOK!");
        return;
       }
-      loadingAnimation(500);
+      loadingAnimation();
   }
 }
 
@@ -188,14 +188,14 @@ void readStringGSM() {//read data from GSM module
     else if (strstr_P(GSMstring, PSTR("RING")) != NULL) {//return ring signal (if somebody ringing)
       gsmSerial.println(F("AT+CLCC")); //returns list of current call numbers
       backlightON();
-      PRINTLNF("ringin!");
+      PRINTLNF("ringin");
     }
     else if (strstr_P(GSMstring, CSQ) != NULL) {//return signal quality, command like +CSQ: 22,99 (if received signal quality data)
       strncpy(GSMstring,strstr_P(GSMstring, CSQ)+6,2);
       GSMstring[2] ='\0';// must return like '22'
       signalStrength = atoi(GSMstring) * 100 / 31; // convert to percent, didnt need to check number, if needed, use sscanf or strtol
       signalSyncOK = true; //maybe return data
-      PRINTLN("signal strength=", signalStrength);
+      PRINTLN("signal=", signalStrength);
     }
     else if (strstr_P(GSMstring, CCLK) != NULL) {//return time, command like +CCLK: "18/11/29,07:34:36+05" (if received time data), also GSM return this line on init +CTZV:17/07/28,19:03:51,+06 but we didnt process it
       strncpy(GSMstring,strstr_P(GSMstring, CCLK)+8,20); 
@@ -210,7 +210,7 @@ void readStringGSM() {//read data from GSM module
         search_p = strtok_P(NULL, DELIMETERS);
       }
       if (parse_time_arr[0] < 20) { //year is < 2020 - wrong datetime!
-        PRINTLNF("sync clock failed!");
+        PRINTLNF("sync clock error");
         return;
       }
       setTime(parse_time_arr[3], parse_time_arr[4], parse_time_arr[5], parse_time_arr[2], parse_time_arr[1], parse_time_arr[0]); //set time and date  setTime(int hr,int min,int sec,int dy, int mnth, int yr)
@@ -226,19 +226,20 @@ void readStringGSM() {//read data from GSM module
         balanceSyncOK = true; // PRINTLNHEX("balanceSyncOK hex=",(long)&balanceSyncOK);
       }
       else {
-        PRINTLNF("check balance error!"); 
+        PRINTLNF("check balance error"); 
         balanceSyncOK = false;
       }
     }
     else if ((strstr_P(GSMstring, PSTR("+CLCC")) != NULL) && !GSMonAirFlag) { //if received phone number calling data
-      PRINTLNF("received calling ID");
+      PRINTLNF("received call ID");
       if (checkNumber(GSMstring)) {//check phone number +CLCC:
         GSMonAirFlag = true;
-  
         workFlag = !workFlag;
-        // relayFlag = !relayFlag;
-        // digitalWrite(RELAY_PIN, relayFlag);
         PRINTLNF("work switch");
+        if (!thermostatFlag) {
+          relayFlag = !relayFlag;
+          digitalWrite(RELAY_PIN, relayFlag);
+        }
         cleanSerialGSM();
         gsmSerial.println(F("ATA"));                       //answer call
         PRINTLNF("answer call");
@@ -287,13 +288,11 @@ void decode7Bit(char *in_str, uint8_t dataSize) {//decode USSD 7bit response
 
 bool checkNumber(const char * string_number) {//check phone number +CLCC:
   static const uint8_t list_size = sizeof(phone_table) / sizeof(phone_table[0]); //size of phones list
-  static char phone_buff[12];
-  for (int i = 0; i < list_size; i++)                            //4 phone numbers
-  {
-    strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
-    if (strstr(string_number, phone_buff) != NULL)
-    {
-      PRINTLN("calling number=", phone_buff);
+  //static char phone_buff[12]; //TODO GSMstring
+  for (int i = 0; i < list_size; i++) {                           //4 phone numbers
+    strcpy_P(GSMstring, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
+    if (strstr(string_number, GSMstring) != NULL) {
+      PRINTLN("call num=", GSMstring);
       return true;
     }
   }
@@ -305,8 +304,7 @@ void cleanSerialGSM() {
     gsmSerial.read();
 }
 
-void hangUpGSM()
-{
+void hangUpGSM() {
   cleanSerialGSM();
   gsmSerial.println(F("AT+CHUP")); //hang up all calls
   GSMonAirFlag = false;
@@ -340,8 +338,8 @@ void sendSMSBalance() {
   if (now() > log_data.unix_time) {
     elapsed_days = elapsedDays(now()) - elapsedDays(log_data.unix_time);
   }
-  PRINTLN("elapsedDays ",elapsed_days);
-  PRINTLN("previous rec time ",log_data.unix_time);
+  PRINTLN("elapsedDays=",elapsed_days);
+  // PRINTLN("previous rec time=",log_data.unix_time);
   if ((elapsed_days >= 80) || log_data.unix_time == 0xFFFFFFFF) { //if more than 80 days have passed from last sending OR if empty date (empty data, nothing to read) then write datetitme (data struct) to EEPROM and send new SMS
     uint16_t write_byte_pos = read_byte_pos + sizeof(Log);
     byte sentinel = bitRead(log_data.home_temp,7); //read sentinel bit
@@ -355,18 +353,18 @@ void sendSMSBalance() {
     log_data.heater_temp = temp[1];
     log_data.balance = balance;
     log_data.unix_time = now();   
-    PRINTLN("write_byte_pos ",write_byte_pos);
-    PRINTLN("sentinel ",sentinel);
+    PRINTLN("write_byte_pos=",write_byte_pos);
+    PRINTLN("sentinel=",sentinel);
     EEPROM.put(write_byte_pos, log_data );
-    PRINTLNF("Writing to EEPROM done!");
+    PRINTLNF("write EEPROM OK");
     
     //send SMS
-    gsmSerial.println("AT+CMGF=1"); // Configuring TEXT mode
+    gsmSerial.println(F("AT+CMGF=1")); // Configuring TEXT mode
     delay(100);
     gsmSerial.print(F("AT+CMGS=+")); //sms to phone number 
-    char phone_date_buff[16]; //number 7XXXXXXXXXX
-    strcpy_P(phone_date_buff, (char *)pgm_read_word(&(phone_table[0]))); // first phone number from table
-    gsmSerial.println(phone_date_buff);   //   "AT+CMGS=\"+79227754426\""
+    // char phone_date_buff[12]; //number 7XXXXXXXXXX
+    strcpy_P(GSMstring, (char *)pgm_read_word(&(phone_table[0]))); // first phone number from table
+    gsmSerial.println(GSMstring);   //   "AT+CMGS=\"+79227754426\""
     delay(100);
     gsmSerial.print(F("Balance: "));
     gsmSerial.print(balance);
@@ -393,9 +391,9 @@ void sendSMSBalance() {
     sprintf(GSMstring, strcpy_P(string_buff, FORMAT_DIGITS_2), month());
     gsmSerial.print(GSMstring);
     gsmSerial.print('.');
-    sprintf(GSMstring, strcpy_P(string_buff, PSTR("%04d")), year());
+    sprintf(GSMstring, strcpy_P(string_buff, PSTR("%04d ")), year());
     gsmSerial.print(GSMstring);
-    gsmSerial.print(' ');
+    // gsmSerial.print(' ');
     sprintf(GSMstring, strcpy_P(string_buff, FORMAT_DIGITS_2), hour());
     gsmSerial.print(GSMstring);
     gsmSerial.print(':');
@@ -403,7 +401,7 @@ void sendSMSBalance() {
     gsmSerial.print(GSMstring);
     gsmSerial.write(26); //Ctr+Z - end of SMS
     delay(100);
-    gsmSerial.println("AT+CMGF=0"); // Configuring TEXT mode
+    gsmSerial.println(F("AT+CMGF=0")); // Configuring TEXT mode
     PRINTLNF("Sending SMS done");
     timer.setTimeout(SECS_PER_MIN * 5000L, requestBalance);//request balance 5 min later
   }

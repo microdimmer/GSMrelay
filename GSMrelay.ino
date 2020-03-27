@@ -3,8 +3,18 @@
 //add preferences menu section, 
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
+/// Configures the number of available variables per line.
+// const uint8_t MAX_VARIABLES = 1; ///< @note Default: 5
+// /// Configures the number of available functions per line.
+// const uint8_t MAX_FUNCTIONS = 1; ///< @note Default: 8
+// /// Configures the number of available lines per screen.
+// const uint8_t MAX_LINES = 2; ///< @note Default: 12
+// /// Configures the number of available screens per menu.
+// const uint8_t MAX_SCREENS = 3; ///< @note Default: 14
+// /// Configures the number of available menus per menus system.
+// const uint8_t MAX_MENUS = 3; ///< @note Default: 8
 
-#define DEBUGGING
+//#define DEBUGGING
 
 const char PROG_VERSION = '3';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
@@ -61,10 +71,12 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 char GSMstring[64] = {'\0'}; //GSM read string buffer
 char string_buff[8] = {'\0'}; //string buffer, used for showing info on display
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
-int8_t t_home_set = 25;
-int8_t t_heater_set = 0;
-int8_t t_home_hysteresis_set = 2;
-int8_t t_heater_hysteresis_set = 2;
+int8_t temp_set[2] = {25, 70}; // temp home to set, temp heater to set
+int8_t temp_set_hysteresis[2] = {2, 10}; // temp home to set, temp heater to set
+// int8_t t_home_set = 25;
+// int8_t t_heater_set = 0;
+// int8_t t_home_hysteresis_set = 2;
+// int8_t t_heater_hysteresis_set = 2;
 uint8_t signalStrength = 0;
 bool GSMonAirFlag = false; //answer call flag
 bool GSMwaitReqFlag = false; // waiting request command flag
@@ -92,8 +104,24 @@ uint8_t currentMenu = 0; //0 - homepage, 1 - main menu, 2 - info menu, 3 - temp 
 #include "menu.h"
 #include "debug.h"
 
-void setup()
-{
+void jobThermostat() {
+  if (workFlag && thermostatFlag) {
+    if (temp_set[0] - temp[0] >= temp_set_hysteresis[0]) {
+        if (!relayFlag) {
+          relayFlag = true;
+          digitalWrite(RELAY_PIN, relayFlag);
+          PRINTLNF("relay on");
+        }
+    }
+    else if (relayFlag)  {
+          relayFlag = false;
+          digitalWrite(RELAY_PIN, relayFlag);
+          PRINTLNF("relay off");
+    }
+  }
+}
+
+void setup() {
   #ifdef DEBUGGING
   Serial.begin(9600);
   PRINTLNF("Debug on");
@@ -108,7 +136,7 @@ void setup()
   initDS();  //init DS temp modules
   requestTempUpdateScreen();  //request temp
 
-  timer.setInterval(1000, requestTempUpdateScreen); //request temp once a second and update screen
+  timer.setInterval(1000, requestTempUpdateScreen); //request temp once a second and update screen //TODO separate
   backlightTimerID = timer.setInterval(SECS_PER_MIN * 10000L, backlightOFF); //auto backlight off 10 mins
   
   if (!GSMinitOK) {
@@ -126,6 +154,7 @@ void setup()
   sendSMSBalance(); //check if its needed to send SMS and then send
 
   timer.setInterval(10000L, requestSignalAndRAM);        //request signal quality every 10 secs
+  timer.setInterval(10000L, jobThermostat);        //do thermostat job
   timer.setInterval(SECS_PER_HOUR * 6000L, requestTime); //sync time every 6 hours
   timer.setInterval(SECS_PER_DAY * 80L, sendSMSBalance); //send sms with balance every 80 days
   timer.setInterval(SECS_PER_HOUR * 6000L, requestBalance);//request balance every 6 hours
@@ -134,8 +163,8 @@ void setup()
   lcd.clear();
   drawMainSreen();
 }
-void loop()
-{
+
+void loop() {
   timer.run();
   readButton();
   readEncoder();

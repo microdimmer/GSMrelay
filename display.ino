@@ -65,23 +65,23 @@ void drawMainSreen() {
   }
 
   if (currentMenu >= 4) { //if temp set mode
-    static bool blinking = false;
+    static bool blinking = false; //see #111 ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
     blinking ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
     switch (currentMenu) {
     case 4:
-      sprintf(two_digits_buff, string_buff, t_home_set);
+      sprintf(two_digits_buff, string_buff, temp_set[0]); // home
       lcd.setCursor(13, 0);
       break;
     case 5:
-      sprintf(two_digits_buff, string_buff, t_heater_set);
+      sprintf(two_digits_buff, string_buff, temp_set[1]); // heater
       lcd.setCursor(13, 1);
       break;
     case 6:
-      sprintf(two_digits_buff, string_buff, t_home_hysteresis_set);
+      sprintf(two_digits_buff, string_buff, temp_set_hysteresis[0]); // home hysteresis 
       lcd.setCursor(13, 0);
       break;
     case 7:
-      sprintf(two_digits_buff, string_buff, t_heater_hysteresis_set);
+      sprintf(two_digits_buff, string_buff, temp_set_hysteresis[1]); // heater hysteresis 
       lcd.setCursor(13, 1);
       break;
     default:
@@ -174,14 +174,13 @@ void backlightON() {
   }
 }
 
-void func() // Blank function, it is attached to the lines so that they become focusable.
-{
-  PRINTLNF("hello!");
+void func() {// Blank function, it is attached to the lines so that they become focusable.
+  PRINTLNF("hi");
 }
 
 void setThermostatFlag() {
   thermostatFlag ^= 1; //invert flag
-  PRINTLNF("switch thermostat");
+  PRINTLNF("thermostat on");
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
@@ -189,19 +188,19 @@ void setThermostatFlag() {
   currentMenu = 0;
 }
 
-void setHomeTemp() {  
+void setHomeTemp() {
   currentMenu == 4 ? currentMenu = 3 :  currentMenu = 4;
 }
 
-void setHeaterTemp() {  
+void setHeaterTemp() {
   currentMenu == 5 ? currentMenu = 3 : currentMenu = 5;
 }
 
-void setHomeHysteresis() { 
+void setHomeHysteresis() {
   currentMenu == 6 ? currentMenu = 3 :  currentMenu = 6;
 }
 
-void setHeaterHysteresis() { 
+void setHeaterHysteresis() {
   currentMenu == 7 ? currentMenu = 3 :  currentMenu = 7;
 }
 
@@ -218,7 +217,7 @@ void setWorkFlag() {
 }
 
 void goInfoMenu() {
-  PRINTLNF("to info menu");
+  PRINTLNF("info menu");
   menu_system.change_menu(info_menu);
   menu_system.change_screen(1);
   menu_system.switch_focus();
@@ -226,7 +225,7 @@ void goInfoMenu() {
 }
 
 void goTempMenu() {
- PRINTLNF("to temp menu");
+ PRINTLNF("temp menu");
  menu_system.change_menu(temp_menu);
  menu_system.change_screen(1);
  menu_system.switch_focus();
@@ -234,36 +233,35 @@ void goTempMenu() {
 }
 
 void goMainMenu() {
-  PRINTLNF("to main menu");
+  PRINTLNF("main menu");
   menu_system.switch_focus();
   menu_system.change_menu(main_menu);
   currentMenu = 1;
 }
 
 void goHomeScreen() {
-  PRINTLNF("to home screen");
+  PRINTLNF("homescreen");
   menu_system.switch_focus();
   updateMainScreenFlag = true;
   clearMainSreenFlag = true;
   currentMenu = 0;
 }
 
-void loadingAnimation(uint32_t a_delay, uint8_t count = 1) {//loading animation TODO
+void loadingAnimation(uint8_t count = 1) {
   for (uint8_t i = 0; i < count; i++) {
     PRINTINFO(".");
-    static char string_buff[6] = {0}; //TODO del static
+    static char loading_string[6] = {0};
     lcd.setCursor(11, 1);
-    lcd.print(string_buff);
-    delay(a_delay);
-//    PRINTLN("string_buff=", string_buff);
-    char *p = strrchr(string_buff,'.');
+    lcd.print(loading_string);
+    delay(500);
+    char *p = strrchr(loading_string,'.');
     if (p == NULL)
-      string_buff[0] = '.';
+      loading_string[0] = '.';
     else
       *++p = '.';
 
-    if (string_buff[5]=='.')
-      strcpy_P(string_buff, PSTR("     "));
-      // memset(string_buff,0,sizeof(string_buff));
+    if (loading_string[5]=='.')
+      strcpy_P(loading_string, PSTR("     ")); //this command "memset(loading_string,0,sizeof(loading_string));" - uses more flash
+      
   }
 }
