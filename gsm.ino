@@ -288,11 +288,10 @@ void decode7Bit(char *in_str, uint8_t dataSize) {//decode USSD 7bit response
 
 bool checkNumber(const char * string_number) {//check phone number +CLCC:
   static const uint8_t list_size = sizeof(phone_table) / sizeof(phone_table[0]); //size of phones list
-  //static char phone_buff[12]; //TODO GSMstring
   for (int i = 0; i < list_size; i++) {                           //4 phone numbers
-    strcpy_P(GSMstring, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
-    if (strstr(string_number, GSMstring) != NULL) {
-      PRINTLN("call num=", GSMstring);
+    strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[i]))); // Necessary casts and dereferencing, just copy.
+    if (strstr(string_number, phone_buff) != NULL) {
+      PRINTLN("call num=", phone_buff);
       return true;
     }
   }
@@ -362,9 +361,8 @@ void sendSMSBalance() {
     gsmSerial.println(F("AT+CMGF=1")); // Configuring TEXT mode
     delay(100);
     gsmSerial.print(F("AT+CMGS=+")); //sms to phone number 
-    // char phone_date_buff[12]; //number 7XXXXXXXXXX
-    strcpy_P(GSMstring, (char *)pgm_read_word(&(phone_table[0]))); // first phone number from table
-    gsmSerial.println(GSMstring);   //   "AT+CMGS=\"+79227754426\""
+    strcpy_P(phone_buff, (char *)pgm_read_word(&(phone_table[0]))); // first phone number from table, number like 7XXXXXXXXXX
+    gsmSerial.println(phone_buff);   //   "AT+CMGS=\"+79227754426\""
     delay(100);
     gsmSerial.print(F("Balance: "));
     gsmSerial.print(balance);

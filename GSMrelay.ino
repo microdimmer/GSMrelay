@@ -4,7 +4,7 @@
 //add voice temp information, add read BUSY pin +
 //!!!!edit LiquidMenu_config.h first!!!!
 /// Configures the number of available variables per line.
-// const uint8_t MAX_VARIABLES = 1; ///< @note Default: 5
+// const uint8_t MAX_VARIABLES = 2; ///< @note Default: 5
 // /// Configures the number of available functions per line.
 // const uint8_t MAX_FUNCTIONS = 1; ///< @note Default: 8
 // /// Configures the number of available lines per screen.
@@ -14,7 +14,7 @@
 // /// Configures the number of available menus per menus system.
 // const uint8_t MAX_MENUS = 3; ///< @note Default: 8
 
-//#define DEBUGGING
+#define DEBUGGING
 
 const char PROG_VERSION = '3';
 const uint8_t RELAY_PIN = A3;                                                                             //pin for Relay
@@ -53,6 +53,13 @@ struct Log {
   time_t unix_time; // current POSIX time, 4 bytes
 }; //total 8 bytes (64 bits)
 
+struct Prefs {
+  int8_t t_home_set; // temp +- 63, 1 byte, and sentinel, see this https://sites.google.com/site/dannychouinard/Home/atmel-avr-stuff/eeprom-longevity
+  int8_t t_heater_set; // heater +- 63, 1 byte, and thermostat flag
+  int8_t t_home_hysteresis_set; // home hysteresis +- 128, 1 byte
+  int8_t t_heater_hysteresis_set; // heater hysteresis +- 128, 1 byte
+}; //total 4 bytes (32 bits)
+
 OneWire ds(TEMP_SENSOR_PIN);
 byte DSaddr[2][8]; // first and second DS18B20 addresses, home 28FFE44750170473 heater 28FF2FDAC11704DE
 
@@ -70,14 +77,11 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 char GSMstring[64] = {'\0'}; //GSM read string buffer
 char string_buff[8] = {'\0'}; //string buffer, used for showing info on display
+char phone_buff[12] = {'\0'} ; //phone number string
 int8_t temp[2] = {-99, -99}; // temp home, temp heater
 int8_t temp_set[2] = {25, 70}; // temp home to set, temp heater to set
 int8_t temp_set_hysteresis[2] = {2, 10}; // temp home to set, temp heater to set
-// int8_t t_home_set = 25;
-// int8_t t_heater_set = 0;
-// int8_t t_home_hysteresis_set = 2;
-// int8_t t_heater_hysteresis_set = 2;
-uint8_t signalStrength = 0;
+int8_t signalStrength = 0; //GSM signal strength
 bool GSMonAirFlag = false; //answer call flag
 bool GSMwaitReqFlag = false; // waiting request command flag
 uint8_t readResponseCounter = 0; // count response commands to run, max 20 times x 500ms

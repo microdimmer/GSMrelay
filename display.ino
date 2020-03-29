@@ -180,7 +180,12 @@ void func() {// Blank function, it is attached to the lines so that they become 
 
 void setThermostatFlag() {
   thermostatFlag ^= 1; //invert flag
-  PRINTLNF("thermostat on");
+  PRINTLN("thermostat=",thermostatFlag);
+  if (!thermostatFlag) {
+    workFlag = thermostatFlag;
+    relayFlag = thermostatFlag;
+    digitalWrite(RELAY_PIN, relayFlag);
+  }
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
@@ -209,6 +214,10 @@ void setWorkFlag() {
   // digitalWrite(RELAY_PIN, relayFlag);
   // PRINTLNF("relay switch");
   workFlag ^= 1;
+  // if (!thermostatFlag) {
+    relayFlag = false;
+    digitalWrite(RELAY_PIN, relayFlag);
+  // }
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
