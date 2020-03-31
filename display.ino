@@ -27,7 +27,7 @@ void initMenu() {
   temp_line2.attach_function(1, setHeaterTemp);
   temp_line3.attach_function(1, setHomeHysteresis);
   temp_line4.attach_function(1, setHeaterHysteresis);
-  temp_line5.attach_function(1, goMainMenu);
+  temp_line5.attach_function(1, savePrefsGoHomeScreen); //exit
   
   info_line1.attach_function(1, func);
   info_line2.attach_function(1, func);
@@ -65,8 +65,9 @@ void drawMainSreen() {
   }
 
   if (currentMenu >= 4) { //if temp set mode
-    static bool blinking = false; //see #111 ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
-    blinking ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
+    static bool blinking = true; //see #111 ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
+    // blinking ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
+    (millis() / 500) % 2) ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
     switch (currentMenu) {
     case 4:
       sprintf(two_digits_buff, string_buff, temp_set[0]); // home
@@ -235,6 +236,7 @@ void goInfoMenu() {
 
 void goTempMenu() {
  PRINTLNF("temp menu");
+ readPrefs(); //reading all temp prefs from EEPROM
  menu_system.change_menu(temp_menu);
  menu_system.change_screen(1);
  menu_system.switch_focus();
@@ -246,6 +248,17 @@ void goMainMenu() {
   menu_system.switch_focus();
   menu_system.change_menu(main_menu);
   currentMenu = 1;
+}
+
+void savePrefsGoHomeScreen() {
+  PRINTLNF("homescreen");
+  PRINTLNF("**savePrefs**");
+  //savePrefs();
+  menu_system.switch_focus();
+  menu_system.change_menu(main_menu);
+  updateMainScreenFlag = true;
+  clearMainSreenFlag = true;
+  currentMenu = 0;
 }
 
 void goHomeScreen() {

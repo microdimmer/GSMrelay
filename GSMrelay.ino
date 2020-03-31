@@ -34,7 +34,7 @@ const char PHOME_NUM3[] PROGMEM = {"79822219033"};                              
 const char PHOME_NUM4[] PROGMEM = {"79226505965"};                                                   //tat
 const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, PHOME_NUM4}; // phones table 
 
-#include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree TODO
+#include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree TODO del
 #include <CircularBuffer.h> // https://github.com/rlogiacco/CircularBuffer //TODO del
 #include <OneWire.h>             //for DS18B20
 // #include <DFRobotDFPlayerMini.h> //DF MP3 Player mini
@@ -43,7 +43,7 @@ const char *const phone_table[] PROGMEM = {PHOME_NUM1, PHOME_NUM2, PHOME_NUM3, P
 #include <TimeLib.h>        //timekeeping https://github.com/PaulStoffregen/Time
 #include <SoftwareSerial.h> //for GSM modem A6 and MP3 module 
 #include <SimpleTimer.h>    // Handy timers with callback parameters and polling https://github.com/marcelloromani/Arduino-SimpleTimer
-#include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/johnrickman/LiquidCrystal_I2C
+#include <LiquidMenu.h>     //The menu wrapper library https://github.com/microdimmer/LiquidMenu and https://github.com/AlexGyver/GyverLibs/tree/master/microLiquidCrystal_I2C and https://github.com/AlexGyver/GyverLibs/tree/master/microWire
 #include <EEPROM.h>         //saving log data to EEPROM and send SMS every 2.5 month
 
 struct Log {
@@ -59,6 +59,8 @@ struct Prefs {
   int8_t t_home_hysteresis_set; // home hysteresis +- 128, 1 byte
   int8_t t_heater_hysteresis_set; // heater hysteresis +- 128, 1 byte
 }; //total 4 bytes (32 bits)
+
+#define LOGEEPROMSIZE E2END+1 - 256// sizeof(struct Log)*4 = 64*4 = 256;  EEPROM.length() is equal E2END+1
 
 OneWire ds(TEMP_SENSOR_PIN);
 byte DSaddr[2][8]; // first and second DS18B20 addresses, home 28FFE44750170473 heater 28FF2FDAC11704DE

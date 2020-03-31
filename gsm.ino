@@ -311,12 +311,75 @@ void hangUpGSM() {
   
 }
 
-uint16_t addrToRead() { //EEPROM address to read from TODO test
+void readPrefs() {
+  uint16_t read_byte_pos = prefsAddrToRead(); //find EEPROM address to read from
+  Prefs prefs_data;
+  EEPROM.get(read_byte_pos, prefs_data); //read EEPROM data  
+  if (prefs_data.t_home_set == 0xFF && prefs_data.t_heater_set == 0xFF && prefs_data.t_home_hysteresis_set == 0xFF && prefs_data.t_heater_hysteresis_set == 0xFF) {
+    PRINTLNF("prefs EEPROM is empty");
+    return;
+  }
+  bitWrite(prefs_data.t_home_set, 7, 0); //clear last bit, its sentinel (0b10000000)
+  temp_set[0] = prefs_data.t_home_set; 
+  thermostatFlag = bitRead(prefs_data.t_heater_set, 7); //read last bit, its thermostatFlag (0b10000000)
+  bitWrite(prefs_data.t_heater_set, 7, 0); //clear last bit, its thermostatFlag (0b10000000)
+  temp_set[1] = prefs_data.t_heater_set;
+  temp_set_hysteresis[0] = prefs_data.t_home_hysteresis_set;
+  temp_set_hysteresis[1] = prefs_data.t_heater_hysteresis_set;
+}
+
+void savePrefs() {
+  uint16_t read_byte_pos = prefsAddrToRead(); //find EEPROM address to read from
+  Prefs prefs_data;
+  EEPROM.get(read_byte_pos, prefs_data); //read EEPROM data
+  PRINTLN("prefs byte_pos ", read_byte_pos);
+
+  byte sentinel = bitRead(prefs_data.t_home_set, 7); //read sentinel bit
+  PRINTLN("prefs sentinel=", sentinel);
+  uint16_t write_byte_pos = read_byte_pos + sizeof(Prefs);
+  if (write_byte_pos >= EEPROM.length()) { //reaching end of EEPROM go to begining (to 0), to the start of EEPROM
+    write_byte_pos = 0;
+    sentinel ^= 1; //invert sentintel bit
+  }
+  prefs_data.t_home_set = temp_set[0];          //home temp must be <= 0b00111111, i.e. abs(home_temp) <= 63
+  bitWrite(prefs_data.t_home_set, 7, sentinel); //set last bit, its sentinel (0b10000000)
+  prefs_data.t_heater_set = temp_set[1];        //heater temp must be <= 0b00111111, i.e. abs(home_temp) <= 63
+  bitWrite(prefs_data.t_heater_set, 7, thermostatFlag); //set last bit, its thermostatFlag (0b10000000)
+  prefs_data.t_home_hysteresis_set = temp_set_hysteresis[0];
+  prefs_data.t_heater_hysteresis_set = temp_set_hysteresis[1];
+  PRINTLN("prefs write byte=", write_byte_pos);
+  PRINTLN("pref sentinel=", sentinel);
+  EEPROM.put(write_byte_pos, prefs_data);
+  PRINTLNF("write prefs EEPROM OK");  
+}
+
+uint16_t prefsAddrToRead(){ //EEPROM address to read from
+  uint16_t read_byte_pos = LOGEEPROMSIZE + sizeof(Log);
+  while (read_byte_pos < EEPROM.length() - sizeof(Prefs)) { // determine address to read data
+    if (bitRead(EEPROM.read(read_byte_pos), 7) != bitRead(EEPROM.read(read_byte_pos + sizeof(Prefs)), 7)) //compare first bit in structs (sentinels), if not equal - we find address!
+      break;
+    read_byte_pos += sizeof(Prefs); //go to next record
+  }
+  return read_byte_pos;
+}
+
+uint16_t logAddrToRead() { //EEPROM address to read from TODO test
   uint16_t read_byte_pos = 0;
-  while(read_byte_pos < EEPROM.length()-sizeof(Log)) { // determine address to read data
+  while (read_byte_pos < LOGEEPROMSIZE - sizeof(Log)) { // determine address to read data
+  // while(read_byte_pos < EEPROM.length()-sizeof(Log)) { // determine address to read data
     if (bitRead(EEPROM.read(read_byte_pos),7) !=  bitRead(EEPROM.read(read_byte_pos+sizeof(Log)),7)) //compare first bit in structs (sentinels), if not equal - we find address!
       break;
     read_byte_pos+=sizeof(Log); //go to next record
+  }
+  return read_byte_pos;
+}
+
+uint16_t addrToRead(uint16_t max_size, uint16_t struct_size) { //EEPROM address to read from
+  uint16_t read_byte_pos = 0;
+  while (read_byte_pos < max_size) { // determine address to read data
+    if (bitRead(EEPROM.read(read_byte_pos),7) !=  bitRead(EEPROM.read(read_byte_pos+struct_size),7)) //compare first bit in structs (sentinels), if not equal - we find address!
+      break;
+    read_byte_pos += struct_size; //go to next record
   }
   return read_byte_pos;
 }
@@ -329,7 +392,7 @@ void sendSMSBalance() {
     return;  
   }
   GSMwaitReqFlag = true;
-  uint16_t read_byte_pos = addrToRead(); //find EEPROM address to read from
+  uint16_t read_byte_pos = logAddrToRead(); //find EEPROM address to read from
   Log log_data;
   EEPROM.get(read_byte_pos, log_data); //read EEPROM data
   PRINTLN("read_byte_pos ",read_byte_pos);
@@ -343,7 +406,8 @@ void sendSMSBalance() {
     uint16_t write_byte_pos = read_byte_pos + sizeof(Log);
     byte sentinel = bitRead(log_data.home_temp,7); //read sentinel bit
     PRINTLN("sentinel ",sentinel);
-    if (write_byte_pos >= EEPROM.length()) { //reaching end of EEPROM go to begining (to 0), to the start of EEPROM
+    if (write_byte_pos >= LOGEEPROMSIZE) {//reaching end of EEPROM go to begining (to 0), to the start of EEPROM
+    //if (write_byte_pos >= EEPROM.length()) { //reaching end of EEPROM go to begining (to 0), to the start of EEPROM
       write_byte_pos = 0;
       sentinel ^= 1 ; //invert sentintel bit
     }
