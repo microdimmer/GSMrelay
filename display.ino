@@ -215,10 +215,10 @@ void setWorkFlag() {
   // digitalWrite(RELAY_PIN, relayFlag);
   // PRINTLNF("relay switch");
   workFlag ^= 1;
-  // if (!thermostatFlag) {
-    relayFlag = false;
+  if (!thermostatFlag) {
+    relayFlag = workFlag;
     digitalWrite(RELAY_PIN, relayFlag);
-  // }
+  }
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
