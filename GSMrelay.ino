@@ -1,7 +1,8 @@
-//use DFPlayerMini_Fast, 
+//use DFPlayerMini_Fast, +
+//add voice temp information, add read BUSY pin +
 //add shedule and temp automation, 
 //add preferences menu section, 
-//add voice temp information, add read BUSY pin +
+
 //!!!!edit LiquidMenu_config.h first!!!!
 /// Configures the number of available variables per line.
 // const uint8_t MAX_VARIABLES = 2; ///< @note Default: 5
@@ -93,7 +94,7 @@ int16_t backlightTimerID = 0;
 
 uint16_t memoryFree = 0;
 int16_t balance = -32768; //min uint
-CircularBuffer<uint8_t,16> audioQueue;     // audio sequence size, can play five files continuously CircularBuffer<uint8_t,6> audioQueue;
+CircularBuffer<uint8_t,18> audioQueue;     // audio sequence size, can play five files continuously CircularBuffer<uint8_t,6> audioQueue;
 bool workFlag = false;
 bool relayFlag = false;
 bool thermostatFlag = false; 
@@ -105,24 +106,26 @@ bool GSMinitOK = false;
 bool timeSyncOK = false;
 bool signalSyncOK = false;
 bool balanceSyncOK = false;
+bool blinking = true;
 uint8_t currentMenu = 0; //0 - homepage, 1 - main menu, 2 - info menu, 3 - temp menu, 4 - set params
 
 #include "menu.h"
 #include "debug.h"
 
 void jobThermostat() {
-  if (workFlag && thermostatFlag) {
-    if (temp_set[0] - temp[0] >= temp_set_hysteresis[0]) {
-        if (!relayFlag) {
-          relayFlag = true;
-          digitalWrite(RELAY_PIN, relayFlag);
-          PRINTLNF("relay on");
-        }
+  if (!thermostatFlag || !workFlag)
+    return;
+
+  for (uint8_t i = 0; i <= 1; i++) {
+    if (temp_set[i] - temp[i] >= temp_set_hysteresis[i]) {
+      relayFlag = true;
+      digitalWrite(RELAY_PIN, relayFlag);
+      PRINTLNF("relay on");
     }
-    else if (relayFlag)  {
-          relayFlag = false;
-          digitalWrite(RELAY_PIN, relayFlag);
-          PRINTLNF("relay off");
+    else {
+      relayFlag = false;
+      digitalWrite(RELAY_PIN, relayFlag);
+      PRINTLNF("relay off");
     }
   }
 }

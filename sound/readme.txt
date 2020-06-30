@@ -52,4 +52,6 @@ percents 	0045.mp3
 700		 	0052.mp3
 800		 	0053.mp3
 900		 	0054.mp3
+thermos_on  0055.mp3
+thermos_off	0056.mp3
 

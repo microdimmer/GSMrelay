@@ -7,10 +7,17 @@ void initMP3() {
 }
 
 void playGSM() {
-  workFlag ? addAudio(34) : addAudio(35); //play switch on/off
+  if (workFlag) { //play switch on/off
+    addAudio(34);
+    thermostatFlag ? addAudio(55) : addAudio(56); //play switch on/off //play thermostat on/off
+  }
+  else {
+    addAudio(35);
+  }
   playTemp(0); //play temp home
   playTemp(1); //play temp heater
   playBalance();
+  //playSignalStrength(); //TODO
   playAudio();
 }
 

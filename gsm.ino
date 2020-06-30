@@ -9,6 +9,8 @@ void initGSM() {//TODO
   #ifdef DEBUGGING
   gsmSerial.begin(9600);
   PRINTINFO("already initialized?");
+
+
   for (uint8_t i = 0; i < 4; i++)  {
     gsmSerial.println(F("AT")); 	
     loadingAnimation();
@@ -16,6 +18,11 @@ void initGSM() {//TODO
     if (gsmSerial.find(strcpy_P(string_buff, PSTR("OK")))) {//copy PROGMEM to buff and find answer in GSM serial
       PRINTLNF("AT ok");
       GSMinitOK = true;
+      loadingAnimation();
+
+      gsmSerial.println(F("AT+CSCS=\"HEX\"")); // "GSM","HEX","PCCP936","UCS2
+      loadingAnimation();
+
       cleanSerialGSM();
       return;
     }
@@ -68,7 +75,7 @@ void initGSM() {//TODO
   GSMinitOK = false;
   gsmSerial.println(F("ATE0")); //echo off
   loadingAnimation();
-  gsmSerial.println(F("AT+CSCS=\"GSM\"")); // "GSM","HEX","PCCP936","UCS2
+  gsmSerial.println(F("AT+CSCS=\"HEX\"")); // "GSM","HEX","PCCP936","UCS2
   PRINTLNF("waiting for SIM");
   loadingAnimation(10); //5 sec waiting if init first time need
   cleanSerialGSM();
@@ -219,14 +226,23 @@ void readStringGSM() {//read data from GSM module
       PRINTLNF("sync clock OK");
     }
     else if (strstr_P(GSMstring, CUSD) != NULL) {//return USSD balance command like +CUSD: 2, "⸮!5H}.A⸮Z⸮⸮⸮⸮." ,1  (if received balance data)
-      strncpy(GSMstring,strstr_P(GSMstring, CUSD)+11,64); //cut string will be like OCTATOK 151.8 p." ,1
-      decode7Bit(GSMstring, sizeof(GSMstring));
-      if (sscanf(GSMstring,"%*[^-0123456789]%d",&balance) == 1){  //find int
+      strncpy(GSMstring,strstr_P(GSMstring, CUSD)+11,sizeof(GSMstring)); //cut string will be like OCTATOK 151.8 p." ,1
+      strncpy(GSMstring,strstr_P(GSMstring, PSTR("0020"))+4,sizeof(GSMstring)); //cut string will be like 151.8
+      char *cut_string;
+      cut_string = strstr_P(GSMstring, PSTR("002E")); //HEX dot
+      if (cut_string != NULL) {
+        cut_string[0] = '\0'; //cut string will be like 151
+      }
+      // decode7Bit(GSMstring, sizeof(GSMstring));
+      decodeHexNums(GSMstring, sizeof(GSMstring));
+      if (sscanf(GSMstring,"%d",&balance) == 1) {  //find int
+      // if (sscanf(GSMstring,"%*[^-0123456789]%d",&balance) == 1) {  //find int
         PRINTLN("balance=",balance);
         balanceSyncOK = true; // PRINTLNHEX("balanceSyncOK hex=",(long)&balanceSyncOK);
       }
       else {
-        PRINTLNF("check balance error"); 
+        PRINTLNF("check balance error");
+        readResponseCounter = readResponseNum;
         balanceSyncOK = false;
       }
     }
@@ -234,8 +250,8 @@ void readStringGSM() {//read data from GSM module
       PRINTLNF("received call ID");
       if (checkNumber(GSMstring)) {//check phone number +CLCC:
         GSMonAirFlag = true;
-        workFlag = !workFlag;
         PRINTLNF("work switch");
+        workFlag ^= 1;
         if (!thermostatFlag) {
           relayFlag = !relayFlag;
           digitalWrite(RELAY_PIN, relayFlag);
@@ -244,14 +260,12 @@ void readStringGSM() {//read data from GSM module
         gsmSerial.println(F("ATA"));                       //answer call
         PRINTLNF("answer call");
         timer.setTimeout(1500, playGSM);
-        if (currentMenu == 0)
-        {
-          lcd.clear();
+        if (currentMenu == 0) {
           updateMainScreenFlag = true;
+          clearMainSreenFlag = true;
         }
         else
           menu_system.update();
-  
         //cleanSerialGSM();
       }
     }
@@ -266,22 +280,92 @@ void readStringGSM() {//read data from GSM module
   }
 }
 
-void decode7Bit(char *in_str, uint8_t dataSize) {//decode USSD 7bit response
+// void decode7Bit(char *in_str, uint8_t dataSize) {//decode USSD 7bit response
+//   char out_str[dataSize-1]  = {'\0'};
+//   memset(out_str,0,sizeof(out_str));
+//   byte reminder = 0;
+//   int bitstate = 7;
+//   for (byte i = 0; in_str[i] != '\0' || i <dataSize-1; i++) {
+//       byte b = in_str[i];
+//       char c = ((b << (7 - bitstate)) + reminder) & 0x7F;
+//       out_str[i] = c;
+//       reminder = b >> bitstate;
+//       bitstate--;
+//       if (bitstate == 0) {
+//         out_str[i] = reminder;
+//         reminder = 0;
+//         bitstate = 7;
+//       }
+//   }
+//   strcpy(in_str,out_str);
+// }
+
+void decodeHexNums(char *in_str, uint8_t dataSize) {//decode HEX response
   char out_str[dataSize-1]  = {'\0'};
   memset(out_str,0,sizeof(out_str));
-  byte reminder = 0;
-  int bitstate = 7;
-  for (byte i = 0; in_str[i] != '\0' || i <dataSize-1; i++) {
-      byte b = in_str[i];
-      char c = ((b << (7 - bitstate)) + reminder) & 0x7F;
-      out_str[i] = c;
-      reminder = b >> bitstate;
-      bitstate--;
-      if (bitstate == 0) {
-        out_str[i] = reminder;
-        reminder = 0;
-        bitstate = 7;
-      }
+  char hex_num[5] = {'\0'};
+  byte i = 0;
+  while (true) {
+    strncpy(hex_num,in_str,sizeof(hex_num)-1);
+    strncpy(in_str,in_str+4,dataSize-1);
+    if (strstr_P(hex_num, PSTR("0039")) != NULL) {
+      out_str[i] = '9';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0038")) != NULL) {
+      out_str[i] = '8';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0037")) != NULL) {
+      out_str[i] = '7';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0036")) != NULL) {
+      out_str[i] = '6';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0035")) != NULL) {
+      out_str[i] = '5';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0034")) != NULL) {
+      out_str[i] = '4';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0033")) != NULL) {
+      out_str[i] = '3';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0032")) != NULL) {
+      out_str[i] = '2';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0031")) != NULL) {
+      out_str[i] = '1';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("0030")) != NULL) {
+      out_str[i] = '0';
+      i++;
+      continue;
+    }
+    else if (strstr_P(hex_num, PSTR("002D")) != NULL) {
+      out_str[i] = '-';
+      i++;
+      continue;
+    }
+    else {
+      break;
+    }
   }
   strcpy(in_str,out_str);
 }
@@ -312,10 +396,12 @@ void hangUpGSM() {
 }
 
 void readPrefs() {
+  PRINTLNF("read prefs");
   uint16_t read_byte_pos = prefsAddrToRead(); //find EEPROM address to read from
+  PRINTLN("prefs addr=",read_byte_pos);
   Prefs prefs_data;
   EEPROM.get(read_byte_pos, prefs_data); //read EEPROM data  
-  if (prefs_data.t_home_set == 0xFF && prefs_data.t_heater_set == 0xFF && prefs_data.t_home_hysteresis_set == 0xFF && prefs_data.t_heater_hysteresis_set == 0xFF) {
+  if (prefs_data.t_home_set == -1 && prefs_data.t_heater_set == -1 && prefs_data.t_home_hysteresis_set == -1 && prefs_data.t_heater_hysteresis_set == -1) { // check struct is filled by 1 (0xFFFFFFFF), by default EEPROM is filled 1
     PRINTLNF("prefs EEPROM is empty");
     return;
   }
@@ -329,16 +415,25 @@ void readPrefs() {
 }
 
 void savePrefs() {
+  PRINTLNF("save prefs");
   uint16_t read_byte_pos = prefsAddrToRead(); //find EEPROM address to read from
   Prefs prefs_data;
   EEPROM.get(read_byte_pos, prefs_data); //read EEPROM data
   PRINTLN("prefs byte_pos ", read_byte_pos);
-
+  
   byte sentinel = bitRead(prefs_data.t_home_set, 7); //read sentinel bit
-  PRINTLN("prefs sentinel=", sentinel);
+  bitWrite(prefs_data.t_home_set, 7, 0); //clear last bit, its sentinel (0b10000000)
+  bitWrite(prefs_data.t_heater_set, 7, 0); //clear last bit, its thermostatFlag (0b10000000)
+  
+  if (prefs_data.t_home_set == temp_set[0] && prefs_data.t_heater_set == temp_set[1] 
+    && prefs_data.t_home_hysteresis_set == temp_set_hysteresis[0] && prefs_data.t_heater_hysteresis_set == temp_set_hysteresis[1]) { // check changes
+    PRINTLNF("nothing is changed");
+    return;
+  }
+
   uint16_t write_byte_pos = read_byte_pos + sizeof(Prefs);
   if (write_byte_pos >= EEPROM.length()) { //reaching end of EEPROM go to begining (to 0), to the start of EEPROM
-    write_byte_pos = 0;
+    write_byte_pos = LOGEEPROMSIZE;
     sentinel ^= 1; //invert sentintel bit
   }
   prefs_data.t_home_set = temp_set[0];          //home temp must be <= 0b00111111, i.e. abs(home_temp) <= 63
@@ -354,8 +449,11 @@ void savePrefs() {
 }
 
 uint16_t prefsAddrToRead(){ //EEPROM address to read from
-  uint16_t read_byte_pos = LOGEEPROMSIZE + sizeof(Log);
+  uint16_t read_byte_pos = LOGEEPROMSIZE;
+  // uint16_t read_byte_pos = LOGEEPROMSIZE + sizeof(Log);
   while (read_byte_pos < EEPROM.length() - sizeof(Prefs)) { // determine address to read data
+    // PRINTLN("sentinel is ", bitRead(EEPROM.read(read_byte_pos), 7));
+    // PRINTLN("read_byte_pos is ", read_byte_pos);
     if (bitRead(EEPROM.read(read_byte_pos), 7) != bitRead(EEPROM.read(read_byte_pos + sizeof(Prefs)), 7)) //compare first bit in structs (sentinels), if not equal - we find address!
       break;
     read_byte_pos += sizeof(Prefs); //go to next record

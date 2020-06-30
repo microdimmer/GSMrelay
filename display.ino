@@ -63,11 +63,14 @@ void drawMainSreen() {
     lcd.clear();
     clearMainSreenFlag = false;
   }
-
+  ///temp set menu
+  // static bool blinking = true;
+  // blinking = millis() % 1000;
   if (currentMenu >= 4) { //if temp set mode
-    static bool blinking = true; //see #111 ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
+    // static bool blinking = true; //see #111 ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
     // blinking ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
-    (millis() / 500) % 2) ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
+    blinking ? strcpy_P(string_buff,CLEAR_LINE) : strcpy_P(string_buff, FORMAT_DIGITS_2);
+    blinking = !blinking;
     switch (currentMenu) {
     case 4:
       sprintf(two_digits_buff, string_buff, temp_set[0]); // home
@@ -90,31 +93,34 @@ void drawMainSreen() {
     }
     lcd.print(two_digits_buff);
     updateMainScreenFlag = false;
-    blinking = !blinking;
     return;
   }
-  
+
+  ///--temp set menu
   currentMenu = 0;
   updateMainScreenFlag = false;
 
-  //relay state show
-  lcd.setCursor(0, 0);
-  workFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
-  // relayFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K\247")); //ВКЛ ВЫКЛ
+  //thermostat state show
   if (thermostatFlag) {
     lcd.write(0); 
   }
+  //relay state show
+  lcd.setCursor(1, 0);
+  workFlag ? lcd.print(F("BK\247")) : lcd.print(F("B\256K")); //ВКЛ ВЫК
   
   //time show
-  lcd.setCursor(6, 0);
+  lcd.setCursor(5, 0);
   sprintf(two_digits_buff, strcpy_P(string_buff, FORMAT_DIGITS_2), hour());
   lcd.print(two_digits_buff);
-  ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
+  // ((millis() / 1000) % 2) ? lcd.write(':') : lcd.write(' ');
+  blinking ? lcd.write(':') : lcd.write(' ');
+  blinking = !blinking;
   sprintf(two_digits_buff, string_buff, minute());
   lcd.print(two_digits_buff);
   
+  //temp show
   for (uint8_t i = 0; i<=1; i++) {
-    lcd.setCursor(12, i);
+    lcd.setCursor(11, i);
     lcd.write(6+i); //6 home sign, 7 heater sign
     if (temp[i]==-99) {
       lcd.print(strcpy_P(two_digits_buff, EMPTY_NUM)); //temp is invalid show --
@@ -142,16 +148,18 @@ void drawMainSreen() {
   }
   lcd.write(3); // russian currency sign
   
-  lcd.setCursor(7, 1);
+  //signal strength show
+  lcd.setCursor(6, 1);
   lcd.write(4); //GSM sign
   if (signalStrength==0) {
     lcd.print(strcpy_P(two_digits_buff, EMPTY_NUM));
   }
   else {  
-    sprintf(two_digits_buff, string_buff, signalStrength);
+    sprintf(two_digits_buff, strcpy_P(string_buff, FORMAT_DIGITS_2), signalStrength);
     lcd.print(two_digits_buff);
   }
   lcd.write('%');
+  lcd.write(' ');
 }
 
 void backlightOFF() {
@@ -179,21 +187,6 @@ void func() {// Blank function, it is attached to the lines so that they become 
   PRINTLNF("hi");
 }
 
-void setThermostatFlag() {
-  thermostatFlag ^= 1; //invert flag
-  PRINTLN("thermostat=",thermostatFlag);
-  if (!thermostatFlag) {
-    workFlag = thermostatFlag;
-    relayFlag = thermostatFlag;
-    digitalWrite(RELAY_PIN, relayFlag);
-  }
-  menu_system.switch_focus();
-  menu_system.switch_focus();
-  updateMainScreenFlag = true;
-  clearMainSreenFlag = true;
-  currentMenu = 0;
-}
-
 void setHomeTemp() {
   currentMenu == 4 ? currentMenu = 3 :  currentMenu = 4;
 }
@@ -211,14 +204,31 @@ void setHeaterHysteresis() {
 }
 
 void setWorkFlag() {
-  // relayFlag = !relayFlag;
-  // digitalWrite(RELAY_PIN, relayFlag);
-  // PRINTLNF("relay switch");
   workFlag ^= 1;
-  // if (!thermostatFlag) {
+  if (!thermostatFlag) {
+    relayFlag = workFlag;
+    digitalWrite(RELAY_PIN, relayFlag);
+    PRINTLNF("relay switch");
+  }
+  else {
     relayFlag = false;
     digitalWrite(RELAY_PIN, relayFlag);
-  // }
+  }
+  menu_system.switch_focus();
+  menu_system.switch_focus();
+  updateMainScreenFlag = true;
+  clearMainSreenFlag = true;
+  currentMenu = 0;
+}
+
+void setThermostatFlag() {
+  thermostatFlag ^= 1; //invert flag
+  PRINTLN("thermostat=",thermostatFlag);
+  if (!thermostatFlag) {
+    workFlag = false; //off work flag
+    relayFlag = false; //switch off
+    digitalWrite(RELAY_PIN, relayFlag);
+  }
   menu_system.switch_focus();
   menu_system.switch_focus();
   updateMainScreenFlag = true;
@@ -252,8 +262,7 @@ void goMainMenu() {
 
 void savePrefsGoHomeScreen() {
   PRINTLNF("homescreen");
-  PRINTLNF("**savePrefs**");
-  //savePrefs();
+  savePrefs();
   menu_system.switch_focus();
   menu_system.change_menu(main_menu);
   updateMainScreenFlag = true;
